@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Solid State Lab — Cristallografia e Teoria delle Bande</title>
+  <meta name="description" content="Laboratorio interattivo di fisica dello stato solido: reticoli, spazio reciproco, diffrazione, Kronig-Penney, tight binding, pseudopotenziali.">
+
+  <!-- ===================================================================
+       CSS CRITICO INLINE
+       Garantisce la logica SPA anche se css/style.css non venisse caricato:
+       qualunque elemento con classe .hidden sparisce, e dei tool è visibile
+       solo quello con classe .active.
+       =================================================================== -->
+  <style>
+    .hidden { display: none !important; }
+    .tool:not(.active) { display: none !important; }
+    #load-errors { display: none; }
+  </style>
+
+  <!-- Font sans-serif moderno -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+  <!-- Foglio di stile del progetto (percorso relativo: index.html deve stare
+       nella radice del sito, accanto alle cartelle css/ e js/) -->
+  <link rel="stylesheet" href="css/style.css" onerror="window.__loadErrors.push('css/style.css')">
+
+  <!-- Registro degli errori di caricamento (mostrato a schermo da uno script in fondo) -->
+  <script>window.__loadErrors = [];</script>
+
+  <!-- ===================================================================
+       MATHJAX 3 — la configurazione DEVE precedere lo script della libreria.
+       Riconosce $...$ (inline) e $$...$$ (display). Il typeset iniziale è
+       automatico; main.js ri-esegue il typeset quando mostra un pannello.
+       =================================================================== -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true
+      },
+      options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] },
+      chtml: { scale: 1.0 }
+    };
+  </script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js"
+          onerror="window.__loadErrors.push('MathJax (cdnjs)')"></script>
+
+  <!-- ===================================================================
+       LIBRERIE GRAFICHE
+       Three.js r128 espone la variabile globale THREE; OrbitControls r128
+       esiste ancora nella versione "examples/js" non-modulo (rimossa in r148).
+       Chart.js 4: il bundle UMD espone la variabile globale Chart.
+       =================================================================== -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"
+          onerror="window.__loadErrors.push('Three.js (cdnjs)')"></script>
+  <script defer src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"
+          onerror="window.__loadErrors.push('OrbitControls (unpkg)')"></script>
+  <script defer src="https://unpkg.com/chart.js@4.4.1/dist/chart.umd.js"
+          onerror="window.__loadErrors.push('Chart.js (unpkg)')"></script>
+
+  <!-- Codice dell'app: "defer" mantiene l'ordine physics → visuals → main -->
+  <script defer src="js/physics.js" onerror="window.__loadErrors.push('js/physics.js')"></script>
+  <script defer src="js/visuals.js" onerror="window.__loadErrors.push('js/visuals.js')"></script>
+  <script defer src="js/main.js" onerror="window.__loadErrors.push('js/main.js')"></script>
+</head>
+<body>
+
+<!-- Avviso diagnostico: compare solo se qualche file non è stato caricato -->
+<div id="load-errors" role="alert"></div>
+
+<!-- =====================================================================
+     VISTA 1 — HOME (l'unica visibile all'avvio)
+     ===================================================================== -->
+<main id="view-home" class="view active" aria-label="Home">
+  <header class="home-head">
+    <p class="eyebrow">Laboratorio virtuale · Fisica dello Stato Solido</p>
+    <h1>Solid State <span class="accent">Lab</span></h1>
+    <p class="lead">Dal reticolo cristallino alla struttura a bande: sei strumenti interattivi basati sulle equazioni reali e su parametri tabulati di materiali veri.</p>
+  </header>
+
+  <section class="cards" aria-label="Moduli">
+    <button type="button" class="module-card" data-module="cryst">
+      <div class="card-art" aria-hidden="true">
+        <svg viewBox="0 0 200 140">
+          <g class="cube" fill="none" stroke-width="1.6">
+            <path d="M60 50 L120 30 L160 55 L100 75 Z"/><path d="M60 50 L60 110 L100 135 L100 75"/><path d="M160 55 L160 115 L100 135"/>
+          </g>
+          <g class="atoms">
+            <circle cx="60" cy="50" r="7"/><circle cx="120" cy="30" r="7"/><circle cx="160" cy="55" r="7"/><circle cx="100" cy="75" r="7"/>
+            <circle cx="60" cy="110" r="7"/><circle cx="100" cy="135" r="7"/><circle cx="160" cy="115" r="7"/><circle class="hot" cx="110" cy="82" r="9"/>
+          </g>
+        </svg>
+      </div>
+      <div class="card-body">
+        <span class="card-index">Modulo 1</span>
+        <h2>Cristallografia</h2>
+        <p>Impacchettamento, spazio reciproco e sfera di Ewald, diffrattometria di polveri.</p>
+        <ul class="card-tools"><li>Costruttore di reticoli</li><li>Ponte reale ↔ reciproco</li><li>Stanza dei raggi X</li></ul>
+        <span class="card-cta">Entra nel modulo →</span>
+      </div>
+    </button>
+
+    <button type="button" class="module-card" data-module="bands">
+      <div class="card-art" aria-hidden="true">
+        <svg viewBox="0 0 200 140">
+          <rect class="gap" x="20" y="62" width="160" height="16"/>
+          <path class="band" d="M20 110 Q100 132 180 78" fill="none" stroke-width="3"/>
+          <path class="band b2" d="M20 30 Q100 8 180 62" fill="none" stroke-width="3"/>
+          <path class="fermi" d="M20 96 L180 96" stroke-dasharray="5 4" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <div class="card-body">
+        <span class="card-index">Modulo 2</span>
+        <h2>Teoria delle Bande</h2>
+        <p>Dall'elettrone quasi libero al tight binding, fino al trucco dello pseudopotenziale.</p>
+        <ul class="card-tools"><li>Kronig-Penney</li><li>Tight binding 1D</li><li>Pseudopotenziale</li></ul>
+        <span class="card-cta">Entra nel modulo →</span>
+      </div>
+    </button>
+  </section>
+
+  <footer class="home-foot">Dati: Kittel · Ashcroft &amp; Mermin · International Tables for Crystallography Vol. C · Harrison</footer>
+</main>
+
+<!-- =====================================================================
+     VISTA 2 — AREA DI LAVORO (nascosta all'avvio)
+     Sidebar a sinistra + area centrale con un tool attivo alla volta.
+     ===================================================================== -->
+<div id="view-work" class="view hidden" aria-label="Area di lavoro">
+
+  <aside id="sidebar">
+    <button type="button" id="btn-home" class="btn-home">← Torna alla Home</button>
+    <div class="side-title">
+      <span class="eyebrow" id="side-eyebrow">Modulo</span>
+      <h2 id="side-module-title">—</h2>
+    </div>
+    <nav id="side-nav" aria-label="Strumenti del modulo"><!-- generato da main.js --></nav>
+    <p class="side-foot">Trascina nei pannelli 3D per ruotare · rotella per lo zoom</p>
+  </aside>
+
+  <main id="workspace">
+
+    <!-- ===================== 1.1 COSTRUTTORE DI RETICOLI ===================== -->
+    <section class="tool" id="tool-lattice" data-tool="lattice" data-module="cryst">
+      <div class="viz-pane">
+        <div class="viz-head"><h3>Costruttore di reticoli</h3><span class="badge" id="lat-badge">—</span></div>
+        <div class="stage">
+          <div class="three-host" id="lat-3d"></div>
+          <div class="hud" id="lat-hud"></div>
+        </div>
+      </div>
+      <div class="ctrl-pane">
+        <div class="ctrl-group">
+          <label for="lat-mat">Materiale reale</label>
+          <select id="lat-mat"></select>
+          <label for="lat-struct">Reticolo</label>
+          <select id="lat-struct">
+            <option value="sc">Cubico semplice (SC)</option>
+            <option value="bcc">Cubico a corpo centrato (BCC)</option>
+            <option value="fcc">Cubico a facce centrate (FCC)</option>
+          </select>
+          <p class="hint" id="lat-struct-hint"></p>
+        </div>
+        <div class="ctrl-group">
+          <label for="lat-r">Raggio atomico <output id="lat-r-out"></output></label>
+          <input type="range" id="lat-r" min="0" max="1000" value="350">
+          <div class="btn-row">
+            <button type="button" class="btn" id="lat-btn-tab">Raggio tabulato</button>
+            <button type="button" class="btn" id="lat-btn-touch">Porta a contatto</button>
+          </div>
+          <label class="check"><input type="checkbox" id="lat-clip"> Mostra solo la frazione di sfera dentro la cella</label>
+        </div>
+        <div class="readout" id="lat-readout"></div>
+        <details class="info">
+          <summary>Teoria · fattore di impacchettamento</summary>
+          <div class="info-body">
+            <p>Il fattore di impacchettamento atomico è la frazione di volume della cella occupata da sfere rigide:</p>
+            <p>$$\mathrm{APF} = \frac{N\,\tfrac43\pi r^3}{a^3}$$</p>
+            <p>$N$ conta gli atomi per cella convenzionale: un atomo al vertice vale $1/8$, su una faccia $1/2$, al centro $1$. Quindi $N=1$ (SC), $2$ (BCC), $4$ (FCC).</p>
+            <p>Le sfere diventano tangenti lungo la direzione più compatta:</p>
+            <ul>
+              <li>SC: spigolo, $2r=a \Rightarrow \mathrm{APF}=\pi/6\approx0.524$</li>
+              <li>BCC: diagonale di corpo, $4r=a\sqrt3 \Rightarrow \pi\sqrt3/8\approx0.680$</li>
+              <li>FCC: diagonale di faccia, $4r=a\sqrt2 \Rightarrow \pi/(3\sqrt2)\approx0.740$</li>
+            </ul>
+            <p>Il valore 0.740 è il massimo per sfere uguali (congettura di Keplero, dimostrata da Hales). Il raggio tabulato si riferisce alla coordinazione 12: nei BCC differisce di qualche per cento da quello di contatto (correzione di Goldschmidt).</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- ===================== 1.2 PONTE REALE / RECIPROCO ===================== -->
+    <section class="tool" id="tool-ewald" data-tool="ewald" data-module="cryst">
+      <div class="viz-pane">
+        <div class="viz-head"><h3>Ponte spazio reale ↔ spazio reciproco</h3><span class="badge" id="ew-badge">—</span></div>
+        <div class="ewald-grid">
+          <figure class="panel"><figcaption><b>A</b> Cristallo (spazio reale) — trascina per ruotare</figcaption><div class="three-host" id="ew-real"></div></figure>
+          <figure class="panel"><figcaption><b>B</b> Reticolo reciproco e sfere di Ewald</figcaption><div class="three-host" id="ew-recip"></div></figure>
+          <figure class="panel"><figcaption><b>C</b> Rivelatore piano in trasmissione (Laue)</figcaption><div class="canvas-host"><canvas id="ew-det"></canvas></div></figure>
+          <div class="panel legend">
+            <p><span class="dot dot-beam"></span> fascio incidente $\hat{\mathbf u}\parallel x$</p>
+            <p><span class="dot dot-node"></span> nodo reciproco $\mathbf G_{hkl}$</p>
+            <p><span class="dot dot-lit"></span> nodo in condizione di Laue: $|\mathbf k+\mathbf G|=|\mathbf k|$</p>
+            <p><span class="dot dot-sphere"></span> sfere di Ewald di raggio $2\pi/\lambda_{max}$ e $2\pi/\lambda_{min}$</p>
+            <p class="hint">I nodi estinti dal fattore di struttura non sono disegnati.</p>
+          </div>
+        </div>
+      </div>
+      <div class="ctrl-pane">
+        <div class="ctrl-group">
+          <label for="ew-mat">Cristallo</label>
+          <select id="ew-mat"></select>
+        </div>
+        <div class="ctrl-group">
+          <label for="ew-lmin">$\lambda_{min}$ del fascio bianco <output id="ew-lmin-out"></output></label>
+          <input type="range" id="ew-lmin" min="40" max="200" value="50">
+          <label for="ew-lmax">$\lambda_{max}$ <output id="ew-lmax-out"></output></label>
+          <input type="range" id="ew-lmax" min="40" max="250" value="120">
+          <p class="hint">Avvicinando $\lambda_{min}$ e $\lambda_{max}$ (fascio monocromatico) le macchie spariscono quasi tutte: per questo con radiazione monocromatica si ruota il cristallo.</p>
+        </div>
+        <div class="ctrl-group">
+          <span class="lbl">Orienta il cristallo: asse parallelo al fascio</span>
+          <div class="btn-row">
+            <button type="button" class="btn" data-orient="0,0,1">[001]</button>
+            <button type="button" class="btn" data-orient="1,1,0">[110]</button>
+            <button type="button" class="btn" data-orient="1,1,1">[111]</button>
+            <button type="button" class="btn" data-orient="rand">Casuale</button>
+          </div>
+          <label class="check"><input type="checkbox" id="ew-spin"> Rotazione continua attorno all'asse verticale</label>
+        </div>
+        <div class="readout" id="ew-readout"></div>
+        <details class="info">
+          <summary>Teoria · Ewald e Laue</summary>
+          <div class="info-body">
+            <p>Il reticolo reciproco di un cubico di passo $a$ è $\mathbf G = \frac{2\pi}{a}(h,k,l)$. Ruotare il cristallo ruota rigidamente anche il suo reticolo reciproco: i pannelli A e B condividono la stessa matrice di rotazione.</p>
+            <p>Condizione di Laue (diffusione elastica): $$\mathbf k' = \mathbf k + \mathbf G,\qquad |\mathbf k'| = |\mathbf k| \;\Longleftrightarrow\; 2\mathbf k\cdot\mathbf G + G^2 = 0$$</p>
+            <p>Il nodo $\mathbf G$ deve cadere sulla sfera di Ewald, di raggio $2\pi/\lambda$ e centro $-\mathbf k$. Con un fascio bianco ogni nodo seleziona la propria lunghezza d'onda:</p>
+            <p>$$\lambda_{hkl} = -\frac{4\pi\,(\hat{\mathbf u}\cdot\mathbf G)}{G^2}$$</p>
+            <p>e si accende se $\lambda_{min}\le\lambda_{hkl}\le\lambda_{max}$. La direzione di $\mathbf k'$ dà la posizione della macchia sul rivelatore; l'intensità segue $|F_{hkl}|^2$.</p>
+            <p>Con l'asse [001] o [111] lungo il fascio il pattern mostra le simmetrie 4 e 3 del cristallo.</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- ===================== 1.3 POLVERI ===================== -->
+    <section class="tool" id="tool-powder" data-tool="powder" data-module="cryst">
+      <div class="viz-pane">
+        <div class="viz-head"><h3>Stanza dei raggi X — diffrattogramma di polveri</h3><span class="badge" id="pw-badge">—</span></div>
+        <div class="chart-host grow"><canvas id="pw-chart"></canvas></div>
+        <div class="table-wrap"><table class="peaks" id="pw-table"></table></div>
+      </div>
+      <div class="ctrl-pane">
+        <div class="ctrl-group">
+          <label for="pw-mat">Campione</label>
+          <select id="pw-mat"></select>
+          <label for="pw-struct">Reticolo (per studiare le estinzioni)</label>
+          <select id="pw-struct">
+            <option value="auto">Struttura reale del materiale</option>
+            <option value="sc">Ipotetico SC (stesso atomo e a)</option>
+            <option value="bcc">Ipotetico BCC</option>
+            <option value="fcc">Ipotetico FCC</option>
+            <option value="diamond">Ipotetico diamante</option>
+          </select>
+          <label for="pw-lambda">Anodo</label>
+          <select id="pw-lambda"></select>
+        </div>
+        <div class="ctrl-group">
+          <label for="pw-size">Dimensione dei domini $L$ <output id="pw-size-out"></output></label>
+          <input type="range" id="pw-size" min="0" max="1000" value="700">
+          <label for="pw-T">Temperatura <output id="pw-T-out"></output></label>
+          <input type="range" id="pw-T" min="0" max="1500" value="300">
+          <label for="pw-strain">Deformazione uniforme $\varepsilon$ <output id="pw-strain-out"></output></label>
+          <input type="range" id="pw-strain" min="-150" max="150" value="0">
+          <label for="pw-micro">Microdeformazione $\varepsilon_{rms}$ <output id="pw-micro-out"></output></label>
+          <input type="range" id="pw-micro" min="0" max="100" value="0">
+          <label for="pw-grad">Gradiente di deformazione $\Delta\varepsilon$ <output id="pw-grad-out"></output></label>
+          <input type="range" id="pw-grad" min="0" max="100" value="0">
+          <label class="check"><input type="checkbox" id="pw-log"> Scala logaritmica (rende visibile il fondo)</label>
+        </div>
+        <div class="readout" id="pw-readout"></div>
+        <details class="info">
+          <summary>Teoria · Bragg, fattore di struttura, estinzioni</summary>
+          <div class="info-body">
+            <p>Legge di Bragg con $d_{hkl}=a/\sqrt{h^2+k^2+l^2}$: $\;\lambda = 2d_{hkl}\sin\theta$.</p>
+            <p>Intensità integrata: $$I_{hkl} = m_{hkl}\,|F_{hkl}|^2\,\frac{1+\cos^2 2\theta}{\sin^2\theta\cos\theta}\,e^{-2B s^2},\quad s=\frac{\sin\theta}{\lambda}$$</p>
+            <p>con $F_{hkl} = f(s)\sum_j e^{2\pi i(hx_j+ky_j+lz_j)}$ e $f(s)$ dai coefficienti di Cromer-Mann. Estinzioni sistematiche:</p>
+            <ul><li>BCC: $F=0$ se $h+k+l$ dispari</li><li>FCC: $F=0$ se gli indici sono misti</li><li>Diamante: come FCC, e in più $F=0$ se $h+k+l=4n+2$, ad esempio (200) e (222)</li></ul>
+          </div>
+        </details>
+        <details class="info">
+          <summary>Teoria · Scherrer, Debye-Waller, deformazioni</summary>
+          <div class="info-body">
+            <p><b>Scherrer</b>: domini di dimensione $L$ allargano i picchi (FWHM in radianti su $2\theta$): $$\beta = \frac{K\lambda}{L\cos\theta},\quad K\approx0.9$$</p>
+            <p><b>Debye-Waller</b>: le vibrazioni termiche riducono le intensità di $e^{-2Bs^2}$, più ad alto angolo, e trasferiscono intensità al fondo. Nel modello di Debye:</p>
+            <p>$$B = \frac{6h^2T}{m k_B\Theta_D^2}\left[\phi(x)+\frac x4\right],\quad x=\frac{\Theta_D}{T}$$</p>
+            <p><b>Deformazioni</b>: una deformazione uniforme $\varepsilon$ sposta tutti i picchi ($\Delta 2\theta = -2\varepsilon\tan\theta$); una microdeformazione casuale li allarga di $4\varepsilon_{rms}\tan\theta$ (Williamson-Hall); un gradiente di deformazione produce una coda asimmetrica.</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- ===================== 2.1 KRONIG-PENNEY ===================== -->
+    <section class="tool" id="tool-kp" data-tool="kp" data-module="bands">
+      <div class="viz-pane">
+        <div class="viz-head"><h3>Top-down: elettrone quasi libero e Kronig-Penney</h3><span class="badge" id="kp-badge">—</span></div>
+        <div class="chart-host grow"><canvas id="kp-chart"></canvas></div>
+        <div class="chart-host mini"><canvas id="kp-pot"></canvas></div>
+      </div>
+      <div class="ctrl-pane">
+        <div class="ctrl-group">
+          <label for="kp-V0">Altezza barriera $V_0$ <output id="kp-V0-out"></output></label>
+          <input type="range" id="kp-V0" min="0" max="400" value="0">
+          <label for="kp-a">Passo reticolare $a$ <output id="kp-a-out"></output></label>
+          <input type="range" id="kp-a" min="200" max="800" value="400">
+          <label for="kp-b">Larghezza barriera $b/a$ <output id="kp-b-out"></output></label>
+          <input type="range" id="kp-b" min="5" max="60" value="20">
+        </div>
+        <div class="ctrl-group">
+          <label for="kp-mat">Elettroni di valenza per cella (dal materiale)</label>
+          <select id="kp-mat"></select>
+          <label class="check"><input type="checkbox" id="kp-free" checked> Mostra la parabola libera ripiegata</label>
+        </div>
+        <div class="readout" id="kp-readout"></div>
+        <details class="info">
+          <summary>Teoria · equazione di Kronig-Penney</summary>
+          <div class="info-body">
+            <p>Potenziale periodico a gradini: buca larga $w=a-b$ a $V=0$, barriera larga $b$ a $V_0$. Il teorema di Bloch e la continuità di $\psi$ e $\psi'$ danno, per $E<V_0$:</p>
+            <p>$$\cos ka = \cos\alpha w\,\cosh\beta b + \frac{\beta^2-\alpha^2}{2\alpha\beta}\sin\alpha w\,\sinh\beta b$$</p>
+            <p>con $\alpha=\sqrt{2mE}/\hbar$ e $\beta=\sqrt{2m(V_0-E)}/\hbar$ (per $E>V_0$ si pone $\beta\to i\gamma$). Solo le energie per cui il secondo membro sta in $[-1,1]$ ammettono un $k$ reale: sono le bande.</p>
+            <p>Con $V_0=0$ si ha $\cos ka=\cos\alpha a$: la parabola libera $E=\hbar^2k^2/2m$ ripiegata nella prima zona. Accendendo $V_0$ si aprono gap ai bordi ($k=\pm\pi/a$) e al centro di zona, dove i rami ripiegati si incrociano.</p>
+            <p>Ogni banda ospita 2 elettroni per cella (spin). Con un numero dispari di elettroni l'ultima banda è piena a metà ($k_F=\pi/2a$): metallo. Con un numero pari $E_F$ cade in un gap: isolante (in 1D). In 3D le bande si sovrappongono e Mg, pur con 2 elettroni, è un metallo.</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- ===================== 2.2 TIGHT BINDING ===================== -->
+    <section class="tool" id="tool-tb" data-tool="tb" data-module="bands">
+      <div class="viz-pane">
+        <div class="viz-head"><h3>Bottom-up: tight binding 1D</h3><span class="badge" id="tb-badge">—</span></div>
+        <div class="chart-row">
+          <div class="chart-host"><canvas id="tb-ek"></canvas></div>
+          <div class="chart-host" id="tb-va-host"><canvas id="tb-va"></canvas></div>
+        </div>
+      </div>
+      <div class="ctrl-pane">
+        <div class="ctrl-group">
+          <label for="tb-chain">Catena</label>
+          <select id="tb-chain">
+            <option value="mono">Monoatomica</option>
+            <option value="di">Biatomica (A–B)</option>
+          </select>
+          <label for="tb-kind">Eccitazioni</label>
+          <select id="tb-kind">
+            <option value="el">Elettroni (tight binding)</option>
+            <option value="ph">Fononi (masse e molle): acustico e ottico</option>
+          </select>
+        </div>
+        <div class="ctrl-group" id="tb-el-ctrls">
+          <span class="lbl">Ordine di interazione</span>
+          <label class="check"><input type="checkbox" id="tb-o1" checked> Primi vicini ($t_1$)</label>
+          <label class="check"><input type="checkbox" id="tb-o2"> Secondi vicini ($t_2$)</label>
+          <label class="check"><input type="checkbox" id="tb-o3"> Terzi vicini ($t_3$)</label>
+          <label for="tb-a">Passo $a$ <output id="tb-a-out"></output></label>
+          <input type="range" id="tb-a" min="150" max="600" value="300">
+          <label for="tb-eA">$\varepsilon_A$ <output id="tb-eA-out"></output></label>
+          <input type="range" id="tb-eA" min="-100" max="100" value="0">
+          <div id="tb-eB-wrap">
+            <label for="tb-eB">$\varepsilon_B$ <output id="tb-eB-out"></output></label>
+            <input type="range" id="tb-eB" min="-100" max="100" value="30">
+          </div>
+        </div>
+        <div class="ctrl-group hidden" id="tb-ph-ctrls">
+          <label for="tb-pair">Masse (u)</label>
+          <select id="tb-pair">
+            <option value="22.990,35.453">Na – Cl</option>
+            <option value="39.098,79.904">K – Br</option>
+            <option value="69.723,74.922">Ga – As</option>
+            <option value="24.305,15.999">Mg – O</option>
+            <option value="28.086,28.086">Si – Si (masse uguali)</option>
+          </select>
+          <label for="tb-K">Costante elastica $K$ <output id="tb-K-out"></output></label>
+          <input type="range" id="tb-K" min="5" max="150" value="30">
+        </div>
+        <div class="readout" id="tb-readout"></div>
+        <details class="info">
+          <summary>Teoria · LCAO e integrali di hopping</summary>
+          <div class="info-body">
+            <p>Combinazione di orbitali atomici $|n\rangle$ di energia $\varepsilon$: $\psi_k=\sum_n e^{ikna}|n\rangle$. Con hopping $-t_j$ tra atomi a distanza $ja$:</p>
+            <p>$$E(k) = \varepsilon - 2t_1\cos ka - 2t_2\cos 2ka - 2t_3\cos 3ka$$</p>
+            <p>Gli integrali sono stimati con la regola universale di Harrison (Slater-Koster $ss\sigma$): $$V_{ss\sigma}(d) = \eta_{ss\sigma}\frac{\hbar^2}{m d^2},\quad \eta_{ss\sigma}=-1.40$$</p>
+            <p>La larghezza di banda $4t_1\propto 1/a^2$: avvicinando gli atomi i livelli atomici si allargano in bande (grafico a destra).</p>
+            <p><b>Catena biatomica</b>: hamiltoniana $2\times2$ con $\varepsilon_A\ne\varepsilon_B$; al bordo zona si apre un gap $|\varepsilon_A-\varepsilon_B|$.</p>
+          </div>
+        </details>
+        <details class="info">
+          <summary>Teoria · rami acustico e ottico</summary>
+          <div class="info-body">
+            <p>"Acustico" e "ottico" sono termini delle vibrazioni reticolari (fononi), che seguono la stessa algebra $2\times2$. Per una catena biatomica di masse $M_1,M_2$ e molle $K$:</p>
+            <p>$$\omega^2 = K\Big(\tfrac{1}{M_1}+\tfrac{1}{M_2}\Big) \pm K\sqrt{\Big(\tfrac1{M_1}+\tfrac1{M_2}\Big)^2-\frac{4\sin^2(ka/2)}{M_1M_2}}$$</p>
+            <p>Il ramo acustico ($\omega\to0$ per $k\to0$, atomi in fase) e quello ottico (atomi in controfase) sono separati da un gap che si chiude se $M_1=M_2$.</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- ===================== 2.3 PSEUDOPOTENZIALE ===================== -->
+    <section class="tool" id="tool-pseudo" data-tool="pseudo" data-module="bands">
+      <div class="viz-pane">
+        <div class="viz-head"><h3>Il trucco del nucleo: pseudopotenziale</h3><span class="badge" id="ps-badge">Potenziale vero</span></div>
+        <div class="chart-host grow"><canvas id="ps-chart"></canvas></div>
+      </div>
+      <div class="ctrl-pane">
+        <div class="ctrl-group">
+          <label for="ps-atom">Atomo</label>
+          <select id="ps-atom"></select>
+          <button type="button" class="btn btn-primary" id="ps-btn">Applica pseudopotenziale</button>
+          <label for="ps-t">Trasformazione manuale <output id="ps-t-out"></output></label>
+          <input type="range" id="ps-t" min="0" max="1000" value="0">
+          <label class="check"><input type="checkbox" id="ps-vr" checked> Mostra il potenziale repulsivo $V_R$</label>
+        </div>
+        <div class="readout" id="ps-readout"></div>
+        <details class="info">
+          <summary>Teoria · Phillips-Kleinman</summary>
+          <div class="info-body">
+            <p>Lo stato di valenza (es. 3s del Na) deve essere ortogonale agli stati di core 1s e 2s: per questo oscilla vicino al nucleo e ha 2 nodi. Phillips e Kleinman scrivono:</p>
+            <p>$$|\psi\rangle = |\varphi\rangle - \sum_c |c\rangle\langle c|\varphi\rangle$$</p>
+            <p>dove $\varphi$ è liscia. Sostituendo nell'equazione di Schrödinger, $\varphi$ obbedisce a $(T + V + V_R)\varphi = E\varphi$ con lo stesso autovalore, e $$V_R = \sum_c (E-E_c)|c\rangle\langle c| \ge 0$$ è repulsivo e localizzato nel core: cancella gran parte della buca coulombiana.</p>
+            <p>La versione più semplice è l'<b>empty core</b> di Ashcroft: $V_{ps}=0$ per $r<r_c$ e $-Z_v e^2/r$ fuori. Un potenziale così debole spiega perché il modello a elettrone quasi libero funziona per i metalli semplici.</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<noscript><p class="noscript">Questa applicazione richiede JavaScript.</p></noscript>
+
+<!-- Diagnostica: a pagina caricata, se qualche risorsa manca la si elenca
+     a schermo con l'indicazione su come risolvere. -->
+<script>
+  window.addEventListener('load', function () {
+    var errs = window.__loadErrors.slice();
+    // "const Physics" non crea una proprietà di window: si usa typeof
+    if (typeof Physics === 'undefined' && errs.indexOf('js/physics.js') < 0) errs.push('js/physics.js (errore di esecuzione)');
+    if (typeof Visuals === 'undefined' && errs.indexOf('js/visuals.js') < 0) errs.push('js/visuals.js (errore di esecuzione)');
+    if (!window.__appStarted && errs.indexOf('js/main.js') < 0) errs.push('js/main.js (non avviato)');
+    if (!errs.length) return;
+    var box = document.getElementById('load-errors');
+    box.innerHTML = '<button type="button" aria-label="Chiudi" onclick="this.parentNode.style.display=\'none\'" ' +
+      'style="float:right;background:none;border:0;color:#fff;font-size:20px;cursor:pointer">×</button>' +
+      '<b>Alcuni file non sono stati caricati:</b> ' + errs.join(', ') +
+      '.<br>Verifica che <code>index.html</code> sia nella radice del repository, accanto alle cartelle <code>css/</code> e <code>js/</code>, e che i nomi rispettino maiuscole e minuscole.';
+    // in basso, per non coprire la sidebar e il tasto "Torna alla Home"
+    box.style.cssText = 'display:block;position:fixed;z-index:9999;left:0;right:0;bottom:0;padding:12px 16px;background:#5a1726;color:#fff;font:14px/1.5 system-ui,sans-serif';
+  });
+</script>
+</body>
+</html>
