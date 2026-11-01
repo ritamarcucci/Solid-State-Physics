@@ -40,6 +40,49 @@ function rafThrottle(fn) {
 }
 const M = () => Physics.MATERIALS;
 
+/** Riempie un menu con l'elenco UNICO dei materiali, raggruppato per categoria.
+ *  Ogni strumento mostra le stesse voci; quelle che lo strumento non sa trattare
+ *  restano visibili ma disabilitate, con il motivo tra parentesi. */
+function materialSelect(sel, tool, preferred) {
+  const groups = Physics.MATERIAL_GROUPS.map(g => {
+    const opts = Object.entries(M()).filter(([, m]) => m.group === g.id).map(([k, m]) => {
+      const ok = Physics.supports(tool, k);
+      const struct = Physics.STRUCTURES[m.structure] ? m.structure.toUpperCase() : m.structure.toUpperCase();
+      return `<option value="${k}"${ok === true ? '' : ' disabled'}>${m.name} (${m.formula}) — ${struct}${ok === true ? '' : ` · non disponibile: ${ok}`}</option>`;
+    }).join('');
+    return `<optgroup label="${g.label}">${opts}</optgroup>`;
+  });
+  sel.innerHTML = groups.join('');
+  const first = [...sel.options].find(o => !o.disabled);
+  sel.value = (preferred && Physics.supports(tool, preferred) === true) ? preferred : first.value;
+  // difesa: se una voce disabilitata viene selezionata (es. via script), si torna all'ultima valida.
+  // Questo listener è registrato prima di quelli dello strumento, quindi agisce per primo.
+  let last = sel.value;
+  sel.addEventListener('change', () => {
+    if (Physics.supports(tool, sel.value) !== true) sel.value = last; else last = sel.value;
+  });
+}
+
+/** Accordion della teoria gestiti da JavaScript: il click sul titolo apre o
+ *  chiude il pannello, che viene portato in vista dentro la colonna dei
+ *  controlli; le formule vengono (ri)composte da MathJax all'apertura. */
+function initAccordions() {
+  document.querySelectorAll('details.info').forEach(d => {
+    const sum = d.querySelector('summary');
+    sum.setAttribute('role', 'button');
+    sum.setAttribute('aria-expanded', d.open ? 'true' : 'false');
+    sum.addEventListener('click', e => {
+      e.preventDefault();                       // gestione esplicita, uguale su tutti i browser
+      d.open = !d.open;
+      sum.setAttribute('aria-expanded', d.open ? 'true' : 'false');
+      if (d.open) {
+        typeset(d);
+        requestAnimationFrame(() => d.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+      }
+    });
+  });
+}
+
 /* =============================================================================
  *  NAVIGAZIONE
  * ============================================================================= */
@@ -57,7 +100,8 @@ const MODULES = {
     tools: [
       { id: 'kp', label: 'Top-down', desc: 'Quasi libero e Kronig-Penney' },
       { id: 'tb', label: 'Bottom-up', desc: 'Tight binding 1D' },
-      { id: 'pseudo', label: 'Il trucco del nucleo', desc: 'Pseudopotenziale' }
+      { id: 'pseudo', label: 'Il trucco del nucleo', desc: 'Pseudopotenziale' },
+      { id: 'bands3d', label: 'Bande reali 3D', desc: 'Si, Ge, GaAs, Al lungo L–Γ–X' }
     ]
   }
 };
@@ -150,9 +194,7 @@ const Tools = {};
  * --------------------------------------------------------------------------- */
 Tools.lattice = {
   init() {
-    const cubic = Object.entries(M()).filter(([, m]) => ['sc', 'bcc', 'fcc'].includes(m.structure));
-    fillSelect($('lat-mat'), cubic.map(([k, m]) => [k, `${m.name} (${k}) — ${m.structure.toUpperCase()}, a = ${m.a} Å`]));
-    $('lat-mat').value = 'Cu';
+    materialSelect($('lat-mat'), 'lattice', 'Cu');
     this.view = new Visuals.LatticeView($('lat-3d'));
     this.structure = null;
 
@@ -166,7 +208,7 @@ Tools.lattice = {
       const mat = M()[$('lat-mat').value];
       this.animateTo(Math.min(1, mat.rMetal / (Physics.STRUCTURES[$('lat-struct').value].touch * mat.a)));
     });
-    $('lat-struct').value = 'fcc';
+    $('lat-struct').value = M()[$('lat-mat').value].structure;
     this.rebuild();
   },
   views() { return [this.view]; },
@@ -215,7 +257,7 @@ Tools.lattice = {
       <div class="row"><span>N atomi / cella</span><b>${P.N}</b></div>
       <div class="row"><span>r attuale</span><b>${fmt(r, 3)} Å</b></div>
       <div class="row"><span>r di contatto</span><b>${fmt(rTouch, 3)} Å</b></div>
-      <div class="row"><span>r tabulato (CN 12)</span><b>${fmt(mat.rMetal, 3)} Å</b></div>
+      <div class="row"><span>r tabulato (${mat.group === 'semi' ? 'covalente' : 'CN 12'})</span><b>${fmt(mat.rMetal, 3)} Å</b></div>
       <div class="row"><span>  scarto tab./contatto</span><span>${tabDiff >= 0 ? '+' : ''}${fmt(tabDiff, 1)} %</span></div>
       <hr>
       <div class="row"><span>V cella = a³</span><b>${fmt(P.Vcell, 3)} Å³</b></div>
@@ -232,9 +274,7 @@ Tools.lattice = {
  * --------------------------------------------------------------------------- */
 Tools.ewald = {
   init() {
-    const list = Object.entries(M()).filter(([, m]) => ['sc', 'bcc', 'fcc', 'diamond'].includes(m.structure));
-    fillSelect($('ew-mat'), list.map(([k, m]) => [k, `${m.name} — ${Physics.STRUCTURES[m.structure].label}, a = ${m.a} Å`]));
-    $('ew-mat').value = 'Cu';
+    materialSelect($('ew-mat'), 'ewald', 'Cu');
     this.v = new Visuals.EwaldViews($('ew-real'), $('ew-recip'), $('ew-det'));
     const update = rafThrottle(() => this.update());
     this.v.onRotate = update;
@@ -247,6 +287,7 @@ Tools.ewald = {
       if (o === 'rand') this.v.randomOrient(); else this.v.orient(o.split(',').map(Number));
     }));
     $('ew-spin').addEventListener('change', e => { this.v.spin = e.target.checked; });
+    $('ew-block').addEventListener('change', () => this.setMaterial());
     // ResizeObserver del rivelatore: ridisegna se cambia la dimensione
     new ResizeObserver(update).observe($('ew-det'));
     this.setMaterial();
@@ -267,7 +308,7 @@ Tools.ewald = {
   },
   setMaterial() {
     const mat = M()[$('ew-mat').value];
-    this.v.setCrystal(mat.structure, mat.a);
+    this.v.setCrystal(mat, { block: $('ew-block').checked });
     this.update();
   },
   update() {
@@ -297,9 +338,7 @@ Tools.ewald = {
  * --------------------------------------------------------------------------- */
 Tools.powder = {
   init() {
-    const list = Object.entries(M()).filter(([, m]) => m.cm && m.structure !== 'hcp');
-    fillSelect($('pw-mat'), list.map(([k, m]) => [k, `${m.name} (${k}) — ${m.structure.toUpperCase()}`]));
-    $('pw-mat').value = 'Cu';
+    materialSelect($('pw-mat'), 'powder', 'Cu');
     fillSelect($('pw-lambda'), Physics.WAVELENGTHS.map(w => [w.value, w.label]));
     const update = rafThrottle(() => this.update());
     this.size = bindRange('pw-size', v => 2 * Math.pow(500, v / 1000), v => `${v < 100 ? fmt(v, 1) : fmt(v, 0)} nm`, update);
@@ -369,14 +408,12 @@ Tools.powder = {
  * --------------------------------------------------------------------------- */
 Tools.kp = {
   init() {
-    const list = Object.entries(M()).filter(([, m]) => m.valence <= 6).sort((a, b) => a[1].valence - b[1].valence);
-    fillSelect($('kp-mat'), list.map(([k, m]) => [k, `${m.name} (${k}) — Z_v = ${m.valence}`]));
-    $('kp-mat').value = 'Na';
+    materialSelect($('kp-mat'), 'kp', 'Na');
     const update = rafThrottle(() => this.update());
     this.V0 = bindRange('kp-V0', v => v / 20, v => `${fmt(v, 2)} eV`, update);
     this.a = bindRange('kp-a', v => v / 100, v => `${fmt(v, 2)} Å`, update);
     this.b = bindRange('kp-b', v => v / 100, v => fmt(v, 2), update);
-    ['kp-mat', 'kp-free'].forEach(id => $(id).addEventListener('change', update));
+    ['kp-mat', 'kp-free', 'kp-ext'].forEach(id => $(id).addEventListener('change', update));
     this.chart = Visuals.makeChart($('kp-chart'), { xTitle: 'k (π/a)', yTitle: 'E (eV)', x: { min: -1, max: 1, ticks: { stepSize: 0.5 } } });
     this.pot = Visuals.makeChart($('kp-pot'), { xTitle: 'x (Å)', yTitle: 'V (eV)', legend: false });
     this.update();
@@ -387,26 +424,58 @@ Tools.kp = {
     const C = Visuals.COLORS;
     const Etop = kp.bands.length ? kp.bands[kp.bands.length - 1].Emax : kp.Emax;
     const ds = [];
+    const ext = $('kp-ext').checked;           // schema a zona estesa?
+    const nB = kp.bands.length;
     if ($('kp-free').checked) {
-      Physics.freeElectronFolded(a, kp.Vavg, Etop * 1.02).forEach((c, i) =>
-        ds.push(Visuals.line(c.map(p => ({ x: p.k, y: p.E })), 'rgba(148,160,187,.45)',
-          { width: 1, dash: [5, 4], label: i === 0 ? 'elettrone libero + V̄' : '_', order: 2 })));
+      if (ext) {
+        // zona estesa: la parabola libera non va ripiegata
+        const pts = [];
+        for (let i = 0; i <= 400; i++) {
+          const kr = -nB + 2 * nB * i / 400;
+          pts.push({ x: kr, y: Physics.CONST.HBAR2_2M * (kr * Math.PI / a) ** 2 + kp.Vavg });
+        }
+        ds.push(Visuals.line(pts, 'rgba(148,160,187,.45)', { width: 1, dash: [5, 4], label: 'elettrone libero + V̄', order: 2 }));
+      } else {
+        Physics.freeElectronFolded(a, kp.Vavg, Etop * 1.02).forEach((c, i) =>
+          ds.push(Visuals.line(c.map(p => ({ x: p.k, y: p.E })), 'rgba(148,160,187,.45)',
+            { width: 1, dash: [5, 4], label: i === 0 ? 'elettrone libero + V̄ (ripiegato)' : '_', order: 2 })));
+      }
     }
     kp.bands.forEach((b, i) => {
       const pos = b.pts.slice().sort((p, q) => p.k - q.k);
-      const pts = pos.map(p => ({ x: -p.k, y: p.E })).reverse().concat(pos.map(p => ({ x: p.k, y: p.E })));
-      ds.push(Visuals.line(pts, C.series[i % C.series.length], { width: 2.4, label: `banda ${i + 1}` }));
+      const col = C.series[i % C.series.length];
+      if (ext) {
+        // banda n nella n-esima zona: due rami simmetrici (k > 0 e k < 0)
+        const right = pos.map(p => ({ x: Physics.extendedK(p.k, i + 1), y: p.E })).sort((p, q) => p.x - q.x);
+        const left = right.map(p => ({ x: -p.x, y: p.y })).reverse();
+        ds.push(Visuals.line(right, col, { width: 2.4, label: `banda ${i + 1}` }));
+        ds.push(Visuals.line(left, col, { width: 2.4 }));
+      } else {
+        const pts = pos.map(p => ({ x: -p.k, y: p.E })).reverse().concat(pos.map(p => ({ x: p.k, y: p.E })));
+        ds.push(Visuals.line(pts, col, { width: 2.4, label: `banda ${i + 1}` }));
+      }
     });
     const F = Physics.kpFermi(kp, mat.valence);
     this.chart.data.datasets = ds;
+    this.chart.options.scales.x.min = ext ? -nB : -1;
+    this.chart.options.scales.x.max = ext ? nB : 1;
+    this.chart.options.scales.x.ticks = { stepSize: ext ? 1 : 0.5 };
+    this.chart.options.scales.x.title.text = ext ? 'k (π/a) — schema a zona estesa' : 'k (π/a) — 1ª zona di Brillouin';
     this.chart.options.scales.y.min = 0;
     this.chart.options.scales.y.max = Math.ceil(Etop * 1.05);
+    // bordi delle zone di Brillouin e vettore di Fermi (k_F = Z/2 in unità di π/a)
+    const kF = mat.valence / 2;
+    const zoneLines = [];
+    if (ext) for (let z = 1; z < nB; z++) zoneLines.push({ x: z, color: 'rgba(148,160,187,.3)', dash: [2, 4], label: z === 1 ? 'π/a' : `${z}π/a` }, { x: -z, color: 'rgba(148,160,187,.3)', dash: [2, 4] });
+    const kFLines = ext
+      ? [{ x: kF, color: 'rgba(255,181,71,.45)', dash: [2, 4], label: 'k_F' }, { x: -kF, color: 'rgba(255,181,71,.45)', dash: [2, 4] }]
+      : [{ x: -0.5, color: 'rgba(255,181,71,.25)', dash: [2, 4] }, { x: 0.5, color: 'rgba(255,181,71,.25)', dash: [2, 4], label: mat.valence % 2 ? 'k_F' : '' }];
     this.chart.options.plugins.overlays = {
       yRanges: kp.gaps.filter(g => g.width > 0.02).map((g, i) => ({
         from: g.Elo, to: g.Ehi, color: 'rgba(255,107,129,.10)', label: `gap ${i + 1}: ${fmt(g.width, 2)} eV`, labelColor: C.danger
       })),
       hLines: F ? [{ y: F.EF, color: C.accent, dash: [6, 4], label: `E_F = ${fmt(F.EF, 2)} eV` }] : [],
-      vLines: [{ x: 0, color: 'rgba(148,160,187,.25)', dash: [2, 4] }, { x: -0.5, color: 'rgba(255,181,71,.25)', dash: [2, 4] }, { x: 0.5, color: 'rgba(255,181,71,.25)', dash: [2, 4], label: mat.valence % 2 ? 'k_F' : '' }]
+      vLines: [{ x: 0, color: 'rgba(148,160,187,.25)', dash: [2, 4] }].concat(zoneLines, kFLines)
     };
     this.chart.update('none');
 
@@ -450,7 +519,9 @@ Tools.tb = {
     this.eA = bindRange('tb-eA', v => v / 10, v => `${fmt(v, 1)} eV`, update);
     this.eB = bindRange('tb-eB', v => v / 10, v => `${fmt(v, 1)} eV`, update);
     this.K = bindRange('tb-K', v => v, v => `${v} N/m`, update);
-    ['tb-o1', 'tb-o2', 'tb-o3', 'tb-pair'].forEach(id => $(id).addEventListener('change', update));
+    ['tb-o1', 'tb-o2', 'tb-o3', 'tb-pair', 'tb-ext'].forEach(id => $(id).addEventListener('change', update));
+    materialSelect($('tb-mat'), 'tb', 'Cu');
+    $('tb-mat').addEventListener('change', () => { this.applyMaterial(); this.update(); });
     $('tb-chain').addEventListener('change', () => this.setChain());
     $('tb-kind').addEventListener('change', () => this.setChain());
     this.ek = Visuals.makeChart($('tb-ek'), { xTitle: 'k (π/a)', yTitle: 'E (eV)', x: { min: -1, max: 1, ticks: { stepSize: 0.5 } } });
@@ -463,9 +534,7 @@ Tools.tb = {
     const di = $('tb-chain').value === 'di', ph = $('tb-kind').value === 'ph';
     const s = $('tb-a');
     s.min = di ? 300 : 150; s.max = di ? 1000 : 600;
-    s.value = clamp(Number(s.value) * (di !== this.wasDi && this.wasDi !== undefined ? (di ? 2 : 0.5) : 1), Number(s.min), Number(s.max));
-    this.wasDi = di;
-    $('tb-a-out').textContent = `${fmt(this.a(), 2)} Å`;
+    this.applyMaterial();
     $('tb-eB-wrap').classList.toggle('hidden', !di);
     $('tb-el-ctrls').classList.toggle('hidden', ph);
     $('tb-ph-ctrls').classList.toggle('hidden', !ph);
@@ -473,19 +542,45 @@ Tools.tb = {
     document.querySelector('#tool-tb .chart-row').classList.toggle('single', ph);
     this.update();
   },
+  /** Il passo della catena è la distanza tra primi vicini del materiale scelto
+   *  (catena monoatomica) o il doppio (catena biatomica, due atomi per cella). */
+  applyMaterial() {
+    const di = $('tb-chain').value === 'di', s = $('tb-a');
+    const d = Physics.nearestNeighbor(M()[$('tb-mat').value]);
+    s.value = clamp(Math.round((di ? 2 : 1) * d * 100), Number(s.min), Number(s.max));
+    $('tb-a-out').textContent = `${fmt(this.a(), 2)} Å`;
+  },
   update() {
     const di = $('tb-chain').value === 'di', ph = $('tb-kind').value === 'ph';
     const C = Visuals.COLORS, n = 241;
     const ks = Array.from({ length: n }, (_, i) => -1 + 2 * i / (n - 1));
     const ds = [];
+    const ext = $('tb-ext').checked;
+    /** Dataset di una banda (indice n, 1-based) a partire dai valori su ks.
+     *  Zona ridotta: una curva su [−π/a, π/a]. Zona estesa: la banda n va nella
+     *  n-esima zona, (n−1)π/a ≤ |k| ≤ nπ/a, con due rami simmetrici. */
+    const band = (E, nb, color, opts) => {
+      if (!ext || nb === 1) return [Visuals.line(ks.map((k, i) => ({ x: k, y: E[i] })), color, opts)];
+      const right = [];
+      ks.forEach((k, i) => { if (k >= 0) right.push({ x: Physics.extendedK(k, nb), y: E[i] }); });
+      right.sort((p, q) => p.x - q.x);
+      const left = right.map(p => ({ x: -p.x, y: p.y })).reverse();
+      return [Visuals.line(right, color, opts), Visuals.line(left, color, { ...opts, label: '_' })];
+    };
+    const setX = () => {
+      const wide = ext && di;                  // con una sola banda lo schema esteso coincide col ridotto
+      this.ek.options.scales.x.min = wide ? -2 : -1;
+      this.ek.options.scales.x.max = wide ? 2 : 1;
+      this.ek.options.scales.x.title.text = ext ? 'k (π/a) — schema a zona estesa' : 'k (π/a) — 1ª zona di Brillouin';
+    };
 
     if (ph) {
       /* ---------------- fononi ---------------- */
       const [M1, M2] = $('tb-pair').value.split(',').map(Number), K = this.K();
       if (di) {
         const br = ks.map(k => Physics.phononDiatomic(k, K, M1, M2));
-        ds.push(Visuals.line(ks.map((k, i) => ({ x: k, y: br[i][0] })), C['accent-2'], { width: 2.4, label: 'ramo acustico' }));
-        ds.push(Visuals.line(ks.map((k, i) => ({ x: k, y: br[i][1] })), C['accent-3'], { width: 2.4, label: 'ramo ottico' }));
+        ds.push(...band(br.map(b => b[0]), 1, C['accent-2'], { width: 2.4, label: 'ramo acustico' }));
+        ds.push(...band(br.map(b => b[1]), 2, C['accent-3'], { width: 2.4, label: 'ramo ottico' }));
         const eA = Physics.phononDiatomic(1, K, M1, M2), e0 = Physics.phononDiatomic(0, K, M1, M2);
         this.ek.options.plugins.overlays = { yRanges: eA[1] - eA[0] > 0.01 ? [{ from: eA[0], to: eA[1], color: 'rgba(255,107,129,.10)', label: `gap ${fmt(eA[1] - eA[0], 2)} THz`, labelColor: C.danger }] : [] };
         $('tb-readout').innerHTML = `
@@ -496,7 +591,7 @@ Tools.tb = {
           <div class="row"><span>gap</span><span class="hl">${fmt(eA[1] - eA[0], 3)} THz</span></div>
           <hr><span>A k=π/a: ω₋=√(2K/M_max), ω₊=√(2K/M_min). Con masse uguali il gap si chiude.</span>`;
       } else {
-        ds.push(Visuals.line(ks.map(k => ({ x: k, y: Physics.phononMono(k, K, M1) })), C['accent-2'], { width: 2.4, label: 'ramo acustico' }));
+        ds.push(...band(ks.map(k => Physics.phononMono(k, K, M1)), 1, C['accent-2'], { width: 2.4, label: 'ramo acustico' }));
         this.ek.options.plugins.overlays = {};
         $('tb-readout').innerHTML = `
           <div class="row"><span>M</span><b>${M1} u</b></div>
@@ -505,6 +600,7 @@ Tools.tb = {
       }
       this.ek.options.scales.y.title.text = 'ν (THz)';
       this.ek.options.scales.y.min = 0; this.ek.options.scales.y.max = undefined;
+      setX();
       this.ek.data.datasets = ds;
       this.ek.update('none');
       $('tb-badge').textContent = di ? 'Fononi · catena biatomica' : 'Fononi · catena monoatomica';
@@ -523,23 +619,27 @@ Tools.tb = {
     if (!di) {
       const Ek = ks.map(k => track(Physics.tbMono(k, a, eA, orders)));
       if (orders[1] || orders[2]) {      // riferimento: solo primi vicini
-        ds.push(Visuals.line(ks.map(k => ({ x: k, y: track(Physics.tbMono(k, a, eA, onlyFirst)) })), 'rgba(148,160,187,.55)', { width: 1.2, dash: [5, 4], label: 'solo t₁' }));
+        ds.push(...band(ks.map(k => track(Physics.tbMono(k, a, eA, onlyFirst))), 1, 'rgba(148,160,187,.55)', { width: 1.2, dash: [5, 4], label: 'solo t₁' }));
       }
-      ds.push(Visuals.line(ks.map((k, i) => ({ x: k, y: Ek[i] })), C['accent-2'], { width: 2.6, label: 'E(k)' }));
+      ds.push(...band(Ek, 1, C['accent-2'], { width: 2.6, label: 'E(k)' }));
     } else {
       const Ek = ks.map(k => Physics.tbDiatomic(k, a, eA, eB, orders).map(track));
       if (orders[1] || orders[2]) {
         const E1 = ks.map(k => Physics.tbDiatomic(k, a, eA, eB, onlyFirst).map(track));
-        ds.push(Visuals.line(ks.map((k, i) => ({ x: k, y: E1[i][0] })), 'rgba(148,160,187,.55)', { width: 1.2, dash: [5, 4], label: 'solo t₁' }));
-        ds.push(Visuals.line(ks.map((k, i) => ({ x: k, y: E1[i][1] })), 'rgba(148,160,187,.55)', { width: 1.2, dash: [5, 4] }));
+        ds.push(...band(E1.map(e => e[0]), 1, 'rgba(148,160,187,.55)', { width: 1.2, dash: [5, 4], label: 'solo t₁' }));
+        ds.push(...band(E1.map(e => e[1]), 2, 'rgba(148,160,187,.55)', { width: 1.2, dash: [5, 4] }));
       }
-      ds.push(Visuals.line(ks.map((k, i) => ({ x: k, y: Ek[i][0] })), C['accent-2'], { width: 2.6, label: 'banda inferiore' }));
-      ds.push(Visuals.line(ks.map((k, i) => ({ x: k, y: Ek[i][1] })), C['accent-3'], { width: 2.6, label: 'banda superiore' }));
+      ds.push(...band(Ek.map(e => e[0]), 1, C['accent-2'], { width: 2.6, label: 'banda inferiore' }));
+      ds.push(...band(Ek.map(e => e[1]), 2, C['accent-3'], { width: 2.6, label: 'banda superiore' }));
     }
     const pad = Math.max(0.5, 0.08 * (Emax - Emin));
     this.ek.options.scales.y.title.text = 'E (eV)';
     this.ek.options.scales.y.min = Math.floor(Emin - pad); this.ek.options.scales.y.max = Math.ceil(Emax + pad);
-    this.ek.options.plugins.overlays = { hLines: [{ y: eA, color: 'rgba(255,181,71,.6)', dash: [3, 4], label: 'ε_A' }].concat(di ? [{ y: eB, color: 'rgba(255,143,163,.6)', dash: [3, 4], label: 'ε_B' }] : []) };
+    this.ek.options.plugins.overlays = {
+      hLines: [{ y: eA, color: 'rgba(255,181,71,.6)', dash: [3, 4], label: 'ε_A' }].concat(di ? [{ y: eB, color: 'rgba(255,143,163,.6)', dash: [3, 4], label: 'ε_B' }] : []),
+      vLines: ext && di ? [{ x: 1, color: 'rgba(148,160,187,.35)', dash: [2, 4], label: 'π/a' }, { x: -1, color: 'rgba(148,160,187,.35)', dash: [2, 4] }] : []
+    };
+    setX();
     this.ek.data.datasets = ds;
     this.ek.update('none');
 
@@ -577,6 +677,8 @@ Tools.tb = {
       <hr>
       <div class="row"><span>estensione totale</span><b>${fmt(W, 3)} eV</b></div>
       ${!di ? `<div class="row"><span>4t₁ (solo primi vicini)</span><span>${fmt(4 * t[0], 3)} eV</span></div>` : gapTxt}
+      <div class="row"><span>d primi vicini ${M()[$('tb-mat').value].formula}</span><span>${fmt(Physics.nearestNeighbor(M()[$('tb-mat').value]), 3)} Å</span></div>
+      ${ext && !di ? '<hr><span>Con una sola banda lo schema esteso coincide con quello ridotto.</span>' : ''}
       <hr><span>Hopping di Harrison: |V_ssσ| = 1.40·ħ²/(m d²) = 10.67/d² eV·Å².</span>`;
     $('tb-badge').textContent = `E(k) = ε${orders.map((o, i) => o ? ` − 2t${i + 1}cos(${i ? i + 1 : ''}ka)` : '').join('')}${di ? '  (2×2)' : ''}`;
     $('tb-badge').className = 'badge hot';
@@ -588,7 +690,7 @@ Tools.tb = {
  * --------------------------------------------------------------------------- */
 Tools.pseudo = {
   init() {
-    fillSelect($('ps-atom'), Object.entries(Physics.PSEUDO_ATOMS).map(([k, p]) => [k, p.label]));
+    materialSelect($('ps-atom'), 'pseudo', 'Na');
     this.t = 0;
     this.chart = Visuals.makeChart($('ps-chart'), {
       xTitle: 'r (Å) — nucleo al centro', yTitle: 'V(r) (eV)', y2Title: 'R(r)  (Å⁻³ᐟ²)',
@@ -601,7 +703,7 @@ Tools.pseudo = {
     this.setAtom();
   },
   setAtom() {
-    this.sys = Physics.pseudoSystem($('ps-atom').value);
+    this.sys = Physics.pseudoSystem(M()[$('ps-atom').value].pseudo);
     // griglia di visualizzazione simmetrica: ψ(|x|) per mostrare il nucleo al centro
     const n = 801;
     this.xs = Array.from({ length: n }, (_, i) => -5 + 10 * i / (n - 1));
@@ -673,6 +775,103 @@ Tools.pseudo = {
   }
 };
 
+/* -----------------------------------------------------------------------------
+ *  2.4 Bande reali 3D (pseudopotenziale empirico)
+ *  Il calcolo (una diagonalizzazione per ogni punto k) richiede da 0.1 a
+ *  qualche secondo: si mostra un messaggio, si lascia ridisegnare la pagina
+ *  e si memorizza il risultato per non ricalcolarlo.
+ * --------------------------------------------------------------------------- */
+Tools.bands3d = {
+  init() {
+    materialSelect($('b3-mat'), 'bands3d', 'Si');
+    this.cache = new Map();
+    this.chart = Visuals.makeChart($('b3-chart'), {
+      yTitle: 'E (eV)', x: { min: 0, max: 1, ticks: { display: false }, grid: { display: false }, title: { display: false } },
+      y: { min: -13, max: 7 }
+    });
+    this.chart.options.layout = { padding: { bottom: 22 } };
+    ['b3-mat', 'b3-basis'].forEach(id => $(id).addEventListener('change', () => this.update()));
+    $('b3-gap').addEventListener('change', () => this.draw());
+    this.update();
+  },
+  update() {
+    const key = M()[$('b3-mat').value].epm, g2 = Number($('b3-basis').value);
+    const ck = `${key}|${g2}`;
+    if (this.cache.has(ck)) { this.res = this.cache.get(ck); this.draw(); return; }
+    $('b3-badge').textContent = 'Calcolo in corso…';
+    $('b3-badge').className = 'badge';
+    $('b3-readout').innerHTML = '<span>Diagonalizzazione dell\'hamiltoniana in onde piane per ogni punto k…</span>';
+    // doppio requestAnimationFrame: garantisce che il messaggio sia disegnato prima del calcolo
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const t0 = performance.now();
+      const res = Physics.epmBands(key, { g2max: g2 });
+      res.ms = performance.now() - t0;
+      this.cache.set(ck, res);
+      this.res = res;
+      this.draw();
+    }));
+  },
+  draw() {
+    const r = this.res, C = Visuals.COLORS, info = r.info, mat = M()[$('b3-mat').value];
+    const show = $('b3-gap').checked;
+    const xmax = r.x[r.x.length - 1];
+    const P = r.P, filled = P.filled || 0;
+    this.chart.data.datasets = r.bands.map((b, i) => {
+      // valenza in ciano, conduzione in viola (per il metallo: un colore per banda)
+      const col = info.metal ? C.series[i % C.series.length] : (i < filled ? C['accent-2'] : C['accent-3']);
+      const label = info.metal ? (i === 0 ? 'bande' : '_') : (i === 0 ? 'bande di valenza' : i === filled ? 'bande di conduzione' : '_');
+      return Visuals.line(r.x.map((x, j) => ({ x, y: b[j] })), col, { width: 2, label });
+    });
+    this.chart.options.scales.x.max = xmax;
+    this.chart.options.scales.y.min = info.metal ? -13 : -13;
+    this.chart.options.scales.y.max = info.metal ? 8 : 7;
+    const ov = { xTicks: r.ticks.map(t => ({ x: t.x, label: t.label })), hLines: [] };
+    if (info.metal) {
+      ov.hLines.push({ y: 0, color: C.accent, dash: [6, 4], label: 'E_F' });
+    } else if (show) {
+      const vbm = { x: info.vbm.x, y: 0 }, cbm = { x: info.cbm.x, y: info.cbm.E };
+      ov.yRanges = [{ from: 0, to: info.gap, color: 'rgba(255,107,129,.10)' }];
+      ov.markers = [
+        { x: vbm.x, y: vbm.y, color: C.accent, label: 'VBM', below: true },
+        { x: cbm.x, y: cbm.y, color: C.danger, label: 'CBM' }
+      ];
+      ov.arrows = [{ x1: vbm.x, y1: vbm.y, x2: cbm.x, y2: cbm.y, color: info.direct ? C.ok : C.danger,
+        label: `${fmt(info.gap, 2)} eV ${info.direct ? 'diretta' : 'indiretta'}` }];
+    }
+    this.chart.options.plugins.overlays = ov;
+    this.chart.update('none');
+
+    const badge = $('b3-badge');
+    if (info.metal) {
+      badge.textContent = `${mat.name}: metallo · ${info.crossing} bande attraversano E_F`;
+      badge.className = 'badge good';
+      $('b3-readout').innerHTML = `
+        <div class="row"><span>elettroni / atomo</span><b>${P.electrons}</b></div>
+        <div class="row"><span>k_F (elettrone libero)</span><b>${fmt(info.kF, 3)} Å⁻¹</b></div>
+        <div class="row"><span>E_F sopra il fondo banda</span><b>${fmt(-Math.min(...r.bands[0]), 2)} eV</b></div>
+        <div class="row"><span>V₁₁₁, V₂₀₀ (Ashcroft)</span><span>${P.local[3]}, ${P.local[4]} Ry</span></div>
+        <hr>
+        <span>Le bande sono quasi parabole libere ripiegate: il potenziale debole apre solo piccoli gap, e diverse bande tagliano il livello di Fermi. Niente gap → metallo.</span>
+        <hr><div class="row"><span>onde piane / tempo</span><span>${r.nG} / ${fmt(r.ms, 0)} ms</span></div>`;
+    } else {
+      badge.textContent = `${mat.name}: gap ${info.direct ? 'DIRETTA' : 'INDIRETTA'} · ${fmt(info.gap, 2)} eV`;
+      badge.className = 'badge ' + (info.direct ? 'good' : 'hot');
+      $('b3-readout').innerHTML = `
+        <div class="row"><span>gap fondamentale (EPM)</span><b class="hl">${fmt(info.gap, 3)} eV</b></div>
+        <div class="row"><span>gap sperimentale (300 K)</span><span>${fmt(P.expGap, 2)} eV</span></div>
+        <div class="row"><span>tipo</span><b class="${info.direct ? 'ok' : 'hl'}">${info.direct ? 'diretta' : 'indiretta'}</b></div>
+        <hr>
+        <div class="row"><span>massimo di valenza</span><b>${info.vbm.where}</b></div>
+        <div class="row"><span>minimo di conduzione</span><b>${info.cbm.where}</b></div>
+        <div class="row"><span>gap diretta minima</span><span>${fmt(info.directGap, 2)} eV in ${info.directAt}</span></div>
+        <hr>
+        <div class="row"><span>fattori V_S (Ry)</span><span>${Object.entries(P.VS).map(([q, v]) => `V${q}=${v}`).join(' ')}</span></div>
+        ${Object.keys(P.VA).length ? `<div class="row"><span>fattori V_A (Ry)</span><span>${Object.entries(P.VA).map(([q, v]) => `V${q}=${v}`).join(' ')}</span></div>` : ''}
+        <div class="row"><span>onde piane / tempo</span><span>${r.nG} / ${fmt(r.ms, 0)} ms</span></div>`;
+    }
+  }
+};
+
 /* =============================================================================
  *  AVVIO
  *  Gli script con "defer" sono eseguiti in ordine prima di DOMContentLoaded,
@@ -697,5 +896,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   Visuals.loadColors();
   Visuals.initCharts();
+  initAccordions();
   route();
 });

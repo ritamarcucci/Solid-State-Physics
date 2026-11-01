@@ -97,6 +97,29 @@ const Visuals = (() => {
     return m;
   }
 
+  /** Scrive "(h k l)" con la notazione cristallografica: un indice negativo
+   *  si indica con una barra sopra la cifra (es. (1̄11) per (−1,1,1)).
+   *  La barra è disegnata come segmento: i caratteri combinanti Unicode non
+   *  sono resi in modo affidabile su canvas. */
+  function drawMiller(ctx, idx, x, y) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(230,235,245,.85)';
+    ctx.strokeStyle = 'rgba(230,235,245,.85)';
+    ctx.lineWidth = 1;
+    const parts = ['('].concat(idx.map(v => String(Math.abs(Math.round(v))))).concat([')']);
+    let cx = x;
+    parts.forEach((t, i) => {
+      ctx.fillText(t, cx, y);
+      const w = ctx.measureText(t).width;
+      const v = idx[i - 1];
+      if (i >= 1 && i <= 3 && v < 0) {       // barra sopra la cifra
+        ctx.beginPath(); ctx.moveTo(cx, y - 9); ctx.lineTo(cx + w, y - 9); ctx.stroke();
+      }
+      cx += w + (i >= 1 && i < 3 ? 1.5 : 0);
+    });
+    ctx.restore();
+  }
+
   /* --------------------------------------------------------------------------
    *  1.1 — Cella cubica con sfere ridimensionabili
    *  Coordinate di scena: la cella occupa il cubo [-1,1]³ (lato 2), quindi
@@ -256,43 +279,68 @@ const Visuals = (() => {
       return [[e[0], e[4], e[8]], [e[1], e[5], e[9]], [e[2], e[6], e[10]]];
     }
 
-    /** Ricostruisce cristallo e nodi quando cambia il materiale. */
-    setCrystal(structure, a) {
+    /** Ricostruisce cristallo e nodi quando cambia il materiale.
+     *  Per leggibilità si disegna UNA cella convenzionale (opzionalmente un
+     *  blocco 2×2×2) con sfere piccole: raggio = 38% del raggio di contatto,
+     *  così vertici, facce, centri e siti tetraedrici restano distinguibili.
+     *  Nelle strutture tetraedriche (diamante, blenda) si disegnano i legami. */
+    setCrystal(mat, { block = false } = {}) {
+      const structure = mat.structure, a = mat.a;
       this.crystal.clear();
-      const s = 1.6;                             // lato della cella in unità di scena
-      this.crystal.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(s, s, s)),
-        new THREE.LineBasicMaterial({ color: COLORS['line-2'] })));
-      const geo = new THREE.SphereGeometry(1, 20, 14);
-      const mat = new THREE.MeshStandardMaterial({ color: COLORS['accent-2'], roughness: .4 });
-      const r = Physics.STRUCTURES[structure].touch * s * 0.62;
-      // un blocco 2×2×2 di celle (centrato nell'origine) rende evidente la periodicità;
-      // i siti condivisi tra celle adiacenti vengono disegnati una sola volta
+      const n = block ? 2 : 1;                   // celle per lato
+      const s = block ? 1.25 : 2.2;              // lato di una cella in unità di scena
+      const half = n * s / 2;                    // il blocco è centrato nell'origine
+      const P = f => [f[0] * s - half, f[1] * s - half, f[2] * s - half];   // frazionarie → scena
+
+      // spigoli: cella/e convenzionali
+      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) for (let k = 0; k < n; k++) {
+        const box = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(s, s, s)),
+          new THREE.LineBasicMaterial({ color: COLORS['line-2'] }));
+        box.position.set(...P([i + 0.5, j + 0.5, k + 0.5]));
+        this.crystal.add(box);
+      }
+      // atomi (siti condivisi tra celle disegnati una sola volta)
+      const geo = new THREE.SphereGeometry(1, 24, 16);
+      const mats = [
+        new THREE.MeshStandardMaterial({ color: COLORS['accent-2'], roughness: .35 }),
+        new THREE.MeshStandardMaterial({ color: COLORS.accent, roughness: .35 })   // anione della blenda
+      ];
+      const r = 0.38 * Physics.STRUCTURES[structure].touch * s;
       const seen = new Set();
-      for (const site of Physics.cellSites(structure)) for (let i = -1; i <= 0; i++) for (let j = -1; j <= 0; j++) for (let k = -1; k <= 0; k++) {
-        const p = [site.p[0] + i, site.p[1] + j, site.p[2] + k];
-        const key = p.map(v => v.toFixed(3)).join(',');
+      for (const site of Physics.cellSites(structure)) for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) for (let k = 0; k < n; k++) {
+        const f = [site.p[0] + i, site.p[1] + j, site.p[2] + k];
+        const key = f.map(v => v.toFixed(3)).join(',');
         if (seen.has(key)) continue;
         seen.add(key);
-        const m = new THREE.Mesh(geo, mat); m.scale.setScalar(r);
-        m.position.set(p[0] * s, p[1] * s, p[2] * s);
+        const m = new THREE.Mesh(geo, mats[site.species || 0]);
+        m.scale.setScalar(r);
+        m.position.set(...P(f));
         this.crystal.add(m);
       }
-      this.crystal.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(2 * s, 2 * s, 2 * s)),
-        new THREE.LineBasicMaterial({ color: COLORS['line'], transparent: true, opacity: .6 })));
-      // assi cristallografici a, b, c
+      // legami tetraedrici
+      if (structure === 'diamond' || structure === 'zincblende') {
+        const bondMat = new THREE.MeshStandardMaterial({ color: 0xc8d0e0, roughness: .5 });
+        for (const [p1, p2] of Physics.closePackedSegments(structure)) for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) for (let k = 0; k < n; k++) {
+          const o = [i, j, k];
+          this.crystal.add(rod(P(p1.map((v, q) => v + o[q])), P(p2.map((v, q) => v + o[q])), 0.12 * r, bondMat));
+        }
+      }
+      // assi cristallografici a, b, c dall'angolo della cella
       const axCol = [0xff6b81, 0x5ee08f, 0x7cc7ff];
       for (let i = 0; i < 3; i++) {
         const d = [0, 0, 0]; d[i] = 1;
-        this.crystal.add(new THREE.ArrowHelper(new THREE.Vector3(...d), new THREE.Vector3(-s, -s, -s), 2.5 * s, axCol[i], 0.22, 0.12));
+        this.crystal.add(new THREE.ArrowHelper(new THREE.Vector3(...d), new THREE.Vector3(...P([0, 0, 0])), n * s + 0.7, axCol[i], 0.22, 0.12));
       }
-      // nodi del reticolo reciproco in coordinate del cristallo (G0)
+
+      // nodi del reticolo reciproco in coordinate del cristallo (G0);
+      // i nodi estinti dal fattore di struttura non si disegnano
       this.recip.clear();
       this.nodeMeshes = new Map();
       this.a = a;
       const g0 = 2 * Math.PI / a, H = 3;
       for (let h = -H; h <= H; h++) for (let k = -H; k <= H; k++) for (let l = -H; l <= H; l++) {
         if (!h && !k && !l) continue;
-        if (Physics.geomStructureFactor(structure, h, k, l).abs2 < 1e-6) continue; // estinto: non disegnato
+        if (Physics.isExtinct(mat, structure, h, k, l)) continue;
         const m = new THREE.Mesh(this.nodeGeo, this.matNode);
         m.position.set(g0 * h, g0 * k, g0 * l);
         m.scale.setScalar(0.13);
@@ -350,38 +398,51 @@ const Visuals = (() => {
       for (let t = 10; t <= this.detMax2Theta; t += 10) {
         const rr = R * Math.tan(t * Math.PI / 180) / tanMax;
         ctx.beginPath(); ctx.arc(cx, cy, rr, 0, 2 * Math.PI); ctx.stroke();
-        ctx.fillText(`${t}°`, cx + rr * 0.707 + 2, cy - rr * 0.707 - 2);
+        ctx.fillText(`${t.toFixed(0)}°`, cx + rr * 0.707 + 2, cy - rr * 0.707 - 2);
       }
       ctx.beginPath(); ctx.moveTo(cx - R, cy); ctx.lineTo(cx + R, cy); ctx.moveTo(cx, cy - R); ctx.lineTo(cx, cy + R); ctx.stroke();
       // beam stop
       ctx.fillStyle = '#1b2236'; ctx.beginPath(); ctx.arc(cx, cy, 6, 0, 2 * Math.PI); ctx.fill();
 
-      const vis = lit.filter(n => n.kout[0] > 0);
-      if (!vis.length) { this.lastSpots = 0; return; }
-      const Imax = Math.max(...vis.map(n => n.I));
-      let shown = 0;
-      ctx.globalCompositeOperation = 'lighter';
-      for (const n of vis) {
+      // solo i raggi diretti in avanti (k'_x > 0) colpiscono il rivelatore in trasmissione
+      const spots = [];
+      for (const n of lit) {
+        if (!(n.kout && n.kout[0] > 0)) continue;
         const X = n.kout[2] / n.kout[0], Y = -n.kout[1] / n.kout[0];
         if (Math.hypot(X, Y) > tanMax) continue;
-        shown++;
-        const px = cx + R * X / tanMax, py = cy + R * Y / tanMax;
-        const rel = Math.log10(1 + 9 * n.I / Imax);                 // scala logaritmica come una lastra
+        spots.push({ node: n, px: cx + R * X / tanMax, py: cy + R * Y / tanMax });
+      }
+      this.lastSpots = spots.length;
+      if (!spots.length) return;
+
+      const Imax = Math.max(...spots.map(p => p.node.I)) || 1;
+      ctx.globalCompositeOperation = 'lighter';
+      for (const { node, px, py } of spots) {
+        const rel = Math.log10(1 + 9 * node.I / Imax);              // scala logaritmica come una lastra
         const rad = 2.5 + 6 * rel;
         const g = ctx.createRadialGradient(px, py, 0, px, py, rad * 2.2);
         g.addColorStop(0, `rgba(255,250,200,${0.55 + 0.45 * rel})`);
         g.addColorStop(0.35, `rgba(255,220,90,${0.35 * rel + 0.2})`);
         g.addColorStop(1, 'rgba(255,180,60,0)');
         ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px, py, rad * 2.2, 0, 2 * Math.PI); ctx.fill();
-        n._px = px; n._py = py;
       }
       ctx.globalCompositeOperation = 'source-over';
-      if (shown <= 36) {                         // etichette hkl solo se non affollato
-        ctx.fillStyle = 'rgba(230,235,245,.75)'; ctx.font = '9.5px JetBrains Mono, monospace';
-        for (const n of vis) if (n._px !== undefined && Math.hypot(n.kout[2] / n.kout[0], n.kout[1] / n.kout[0]) <= tanMax)
-          ctx.fillText(`${n.h}${n.k}${n.l}`.replace(/-(\d)/g, '̅$1'), n._px + 7, n._py - 5);
+
+      // Etichette: indici di Miller (h k l) del nodo che ha generato la macchia.
+      // Se per qualche motivo gli indici non fossero interi validi, si mostra
+      // l'angolo di diffrazione 2θ arrotondato a un decimale (es. "16.0°").
+      if (spots.length <= 40) {
+        ctx.font = '10px "JetBrains Mono", ui-monospace, monospace';
+        ctx.textBaseline = 'alphabetic';
+        for (const { node, px, py } of spots) {
+          const idx = [node.h, node.k, node.l];
+          if (idx.every(Number.isInteger)) drawMiller(ctx, idx, px + 8, py - 6);
+          else if (Number.isFinite(node.twoTheta)) {
+            ctx.fillStyle = 'rgba(230,235,245,.8)';
+            ctx.fillText(`${node.twoTheta.toFixed(1)}°`, px + 8, py - 6);
+          }
+        }
       }
-      this.lastSpots = shown;
     }
     resize() { this.A.resize(); this.B.resize(); }
     render() { this.A.render(); this.B.render(); }
@@ -442,6 +503,37 @@ const Visuals = (() => {
         if (px < ca.left || px > ca.right) continue;
         ctx.fillStyle = t.color || COLORS.text;
         ctx.fillText(t.text, px, Math.max(ca.top + 10, py - 8));
+      }
+      // etichette dei punti ad alta simmetria sotto l'asse x (Γ, X, L, ...)
+      ctx.font = '600 13px Inter, system-ui, sans-serif';
+      for (const t of o.xTicks || []) {
+        const px = x.getPixelForValue(t.x);
+        ctx.strokeStyle = 'rgba(148,160,187,.35)'; ctx.lineWidth = 1; ctx.setLineDash([]);
+        ctx.beginPath(); ctx.moveTo(px, ca.top); ctx.lineTo(px, ca.bottom); ctx.stroke();
+        ctx.fillStyle = COLORS.text;
+        ctx.fillText(t.label, px, ca.bottom + 18);
+      }
+      // marcatori (es. massimo di valenza e minimo di conduzione)
+      ctx.font = '11px "JetBrains Mono", monospace';
+      for (const m of o.markers || []) {
+        const px = x.getPixelForValue(m.x), py = y.getPixelForValue(m.y);
+        if (py < ca.top || py > ca.bottom) continue;
+        ctx.fillStyle = m.color; ctx.strokeStyle = COLORS.bg; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(px, py, 5, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+        if (m.label) ctx.fillText(m.label, px, py + (m.below ? 18 : -10));
+      }
+      // freccia tra due punti (gap)
+      for (const ar of o.arrows || []) {
+        const x1 = x.getPixelForValue(ar.x1), y1 = y.getPixelForValue(ar.y1);
+        const x2 = x.getPixelForValue(ar.x2), y2 = y.getPixelForValue(ar.y2);
+        ctx.strokeStyle = ar.color; ctx.fillStyle = ar.color; ctx.lineWidth = 2; ctx.setLineDash([4, 3]);
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.setLineDash([]);
+        const ang = Math.atan2(y2 - y1, x2 - x1);
+        ctx.beginPath(); ctx.moveTo(x2, y2);
+        ctx.lineTo(x2 - 9 * Math.cos(ang - 0.4), y2 - 9 * Math.sin(ang - 0.4));
+        ctx.lineTo(x2 - 9 * Math.cos(ang + 0.4), y2 - 9 * Math.sin(ang + 0.4));
+        ctx.closePath(); ctx.fill();
+        if (ar.label) { ctx.textAlign = 'left'; ctx.fillText(ar.label, (x1 + x2) / 2 + 8, (y1 + y2) / 2); ctx.textAlign = 'center'; }
       }
       ctx.restore();
     }

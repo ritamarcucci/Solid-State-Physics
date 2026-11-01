@@ -50,18 +50,18 @@ const Physics = (() => {
    *            SC  -> atomi in contatto lungo lo spigolo     r = a/2
    *            BCC -> lungo la diagonale di corpo             r = a√3/4
    *            FCC -> lungo la diagonale di faccia            r = a√2/4
-   *            Diamante -> legame lungo 1/4 della diag. corpo r = a√3/8
+   *            Diamante / blenda -> legame lungo ¼ della diagonale di corpo  r = a√3/8
+   *    La blenda (zincblende, GaAs) ha gli stessi siti del diamante, ma i due
+   *    sottoreticoli FCC sono occupati da specie diverse (siti 0-3 e 4-7).
    * ------------------------------------------------------------------------- */
   const FCC_BASIS = [[0, 0, 0], [0.5, 0.5, 0], [0.5, 0, 0.5], [0, 0.5, 0.5]];
+  const DIAMOND_BASIS = FCC_BASIS.concat(FCC_BASIS.map(p => p.map(x => x + 0.25)));
   const STRUCTURES = {
     sc:  { label: 'Cubico semplice (SC)', basis: [[0, 0, 0]], touch: 0.5, dirs: '⟨100⟩ (spigoli)' },
-    bcc: { label: 'Cubico a corpo centrato (BCC)', basis: [[0, 0, 0], [0.5, 0.5, 0.5]], touch: Math.sqrt(3) / 4, dirs: '⟨111⟩ (diagonali di corpo)' },
-    fcc: { label: 'Cubico a facce centrate (FCC)', basis: FCC_BASIS, touch: Math.sqrt(2) / 4, dirs: '⟨110⟩ (diagonali di faccia)' },
-    diamond: {
-      label: 'Diamante (FCC + base a ¼¼¼)',
-      basis: FCC_BASIS.concat(FCC_BASIS.map(p => p.map(x => x + 0.25))),
-      touch: Math.sqrt(3) / 8, dirs: '⟨111⟩ (legami tetraedrici)'
-    }
+    bcc: { label: 'Cubico a corpo centrato (CCC / BCC)', basis: [[0, 0, 0], [0.5, 0.5, 0.5]], touch: Math.sqrt(3) / 4, dirs: '⟨111⟩ (diagonali di corpo)' },
+    fcc: { label: 'Cubico a facce centrate (CFC / FCC)', basis: FCC_BASIS, touch: Math.sqrt(2) / 4, dirs: '⟨110⟩ (diagonali di faccia)' },
+    diamond: { label: 'Diamante (CFC + base a ¼¼¼)', basis: DIAMOND_BASIS, touch: Math.sqrt(3) / 8, dirs: '⟨111⟩ (legami tetraedrici)' },
+    zincblende: { label: 'Blenda di zinco (due specie)', basis: DIAMOND_BASIS, touch: Math.sqrt(3) / 8, dirs: '⟨111⟩ (legami tetraedrici)' }
   };
   // Fattore di impacchettamento ideale: APF = N·(4/3)π·touch³
   // (SC = π/6 ≈ 0.524, BCC = π√3/8 ≈ 0.680, FCC = π/(3√2) ≈ 0.740, diamante = π√3/16 ≈ 0.340)
@@ -71,47 +71,117 @@ const Physics = (() => {
   }
 
   /* ---------------------------------------------------------------------------
-   * 3. DATABASE MATERIALI (valori a temperatura ambiente salvo nota)
-   *
-   *  a       : costante reticolare [Å]                      (Kittel, cap. 1, Tab. 3-4)
-   *  rMetal  : raggio metallico tabulato per CN=12 [Å]      (Kittel / Greenwood-Earnshaw)
-   *            per il Si è il raggio covalente
-   *  thetaD  : temperatura di Debye [K]                     (Kittel, cap. 5, Tab. 1)
-   *  valence : elettroni di valenza per atomo               (Ashcroft-Mermin, Tab. 1.1)
-   *  Tm      : temperatura di fusione [K]                   (CRC Handbook)
-   *  cm      : coefficienti di Cromer-Mann del fattore di forma atomico
-   *            f(s) = Σ aᵢ·exp(−bᵢ s²) + c,  s = sinθ/λ [Å⁻¹]
-   *            [a1,b1,a2,b2,a3,b3,a4,b4,c]  (Int. Tables for Crystallography Vol. C, Tab. 6.1.1.4)
-   *
-   *  Nota sul raggio: il raggio CN=12 è leggermente maggiore del raggio di
-   *  contatto in una BCC (CN=8) — correzione di Goldschmidt (~3%). È un buon
-   *  esercizio farlo notare agli studenti confrontando i due valori.
+   * 3a. ELEMENTI — proprietà atomiche
+   *  Z  : numero atomico     A : massa atomica [u]
+   *  cm : coefficienti di Cromer-Mann del fattore di forma atomico
+   *       f(s) = Σ aᵢ·exp(−bᵢ s²) + c,  s = sinθ/λ [Å⁻¹],  [a1,b1,a2,b2,a3,b3,a4,b4,c]
+   *       (International Tables for Crystallography Vol. C, Tab. 6.1.1.4).
+   *       Verifica: Σaᵢ + c ≈ Z (f a s = 0 conta tutti gli elettroni).
    * ------------------------------------------------------------------------- */
-  const MATERIALS = {
-    Cu: { name: 'Rame', Tm: 1358, Z: 29, A: 63.546, structure: 'fcc', a: 3.615, rMetal: 1.28, thetaD: 343, valence: 1,
-          cm: [13.3380, 3.5828, 7.1676, 0.2470, 5.6158, 11.3966, 1.6735, 64.8126, 1.1910] },
-    Al: { name: 'Alluminio', Tm: 933, Z: 13, A: 26.982, structure: 'fcc', a: 4.050, rMetal: 1.43, thetaD: 428, valence: 3,
-          cm: [6.4202, 3.0387, 1.9002, 0.7426, 1.5936, 31.5472, 1.9646, 85.0886, 1.1151] },
-    Ni: { name: 'Nichel', Tm: 1728, Z: 28, A: 58.693, structure: 'fcc', a: 3.524, rMetal: 1.24, thetaD: 450, valence: 2,
-          cm: [12.8376, 3.8785, 7.2920, 0.2565, 4.4438, 12.1763, 2.3800, 66.3421, 1.0341] },
-    Au: { name: 'Oro', Tm: 1337, Z: 79, A: 196.967, structure: 'fcc', a: 4.078, rMetal: 1.44, thetaD: 165, valence: 1,
-          cm: [16.8819, 0.4611, 18.5913, 8.6216, 25.5582, 1.4826, 5.8600, 36.3956, 12.0658] },
-    Fe: { name: 'Ferro (α)', Tm: 1811, Z: 26, A: 55.845, structure: 'bcc', a: 2.8665, rMetal: 1.26, thetaD: 470, valence: 2,
-          cm: [11.7695, 4.7611, 7.3573, 0.3072, 3.5222, 15.3535, 2.3045, 76.8805, 1.0369] },
-    W:  { name: 'Tungsteno', Z: 74, A: 183.84, structure: 'bcc', a: 3.165, rMetal: 1.39, thetaD: 400, valence: 2,
-          cm: [29.0818, 1.72029, 15.4300, 9.2259, 14.4327, 0.321703, 5.11982, 57.0560, 9.8875] },
-    Na: { name: 'Sodio (a 5 K)', Tm: 371, Z: 11, A: 22.990, structure: 'bcc', a: 4.225, rMetal: 1.90, thetaD: 158, valence: 1,
-          cm: [4.7626, 3.2850, 3.1736, 8.8422, 1.2674, 0.3136, 1.1128, 129.424, 0.6760] },
-    Si: { name: 'Silicio', Tm: 1687, Z: 14, A: 28.086, structure: 'diamond', a: 5.431, rMetal: 1.175, thetaD: 645, valence: 4,
-          cm: [6.2915, 2.4386, 3.0353, 32.3337, 1.9891, 0.6785, 1.5410, 81.6937, 1.1407] },
-    // α-Po: unico elemento cubico semplice a T ambiente. Θ_D non è misurata in
-    // modo affidabile, quindi viene escluso dagli strumenti termici.
-    Po: { name: 'Polonio (α)', Tm: 527, Z: 84, A: 208.98, structure: 'sc', a: 3.359, rMetal: 1.68, thetaD: null, valence: 6,
-          cm: [34.6726, 0.700999, 15.4733, 3.55078, 13.1138, 9.55642, 7.02588, 47.0045, 13.6770] },
-    // Mg è esagonale (hcp): usato solo per il conteggio degli elettroni di valenza
-    // e nel modulo pseudopotenziale.
-    Mg: { name: 'Magnesio (hcp)', Tm: 923, Z: 12, A: 24.305, structure: 'hcp', a: 3.209, rMetal: 1.60, thetaD: 400, valence: 2, cm: null }
+  const ELEMENTS = {
+    Na: { Z: 11, A: 22.990,  cm: [4.7626, 3.2850, 3.1736, 8.8422, 1.2674, 0.3136, 1.1128, 129.424, 0.6760] },
+    Mg: { Z: 12, A: 24.305,  cm: [5.4204, 2.8275, 2.1735, 79.2611, 1.2269, 0.3808, 2.3073, 7.1937, 0.8584] },
+    Al: { Z: 13, A: 26.982,  cm: [6.4202, 3.0387, 1.9002, 0.7426, 1.5936, 31.5472, 1.9646, 85.0886, 1.1151] },
+    Si: { Z: 14, A: 28.086,  cm: [6.2915, 2.4386, 3.0353, 32.3337, 1.9891, 0.6785, 1.5410, 81.6937, 1.1407] },
+    Fe: { Z: 26, A: 55.845,  cm: [11.7695, 4.7611, 7.3573, 0.3072, 3.5222, 15.3535, 2.3045, 76.8805, 1.0369] },
+    Ni: { Z: 28, A: 58.693,  cm: [12.8376, 3.8785, 7.2920, 0.2565, 4.4438, 12.1763, 2.3800, 66.3421, 1.0341] },
+    Cu: { Z: 29, A: 63.546,  cm: [13.3380, 3.5828, 7.1676, 0.2470, 5.6158, 11.3966, 1.6735, 64.8126, 1.1910] },
+    Ga: { Z: 31, A: 69.723,  cm: [15.2354, 3.0669, 6.7006, 0.2412, 4.3591, 10.7805, 2.9623, 61.4135, 1.7189] },
+    Ge: { Z: 32, A: 72.630,  cm: [16.0816, 2.8509, 6.3747, 0.2516, 3.7068, 11.4468, 3.6830, 54.7625, 2.1313] },
+    As: { Z: 33, A: 74.922,  cm: [16.6723, 2.6345, 6.0701, 0.2647, 3.4313, 12.9479, 4.2779, 47.7972, 2.5310] },
+    Mo: { Z: 42, A: 95.95,   cm: [3.7025, 0.2772, 17.2356, 1.0958, 12.8876, 11.0040, 3.7429, 61.6584, 4.3875] },
+    Ag: { Z: 47, A: 107.868, cm: [19.2808, 0.6446, 16.6885, 7.4726, 4.8045, 24.6605, 1.0463, 99.8156, 5.1790] },
+    W:  { Z: 74, A: 183.84,  cm: [29.0818, 1.72029, 15.4300, 9.2259, 14.4327, 0.321703, 5.11982, 57.0560, 9.8875] },
+    Au: { Z: 79, A: 196.967, cm: [16.8819, 0.4611, 18.5913, 8.6216, 25.5582, 1.4826, 5.8600, 36.3956, 12.0658] },
+    Po: { Z: 84, A: 208.98,  cm: [34.6726, 0.700999, 15.4733, 3.55078, 13.1138, 9.55642, 7.02588, 47.0045, 13.6770] }
   };
+
+  /* ---------------------------------------------------------------------------
+   * 3b. DATABASE MATERIALI — UNICO PER TUTTI GLI STRUMENTI
+   *
+   *  group   : categoria mostrata nei menu a tendina (stesso elenco ovunque)
+   *  species : elementi della base (per la blenda: [cationi, anioni])
+   *  a       : costante reticolare a temperatura ambiente [Å]   (Kittel, cap. 1)
+   *  rTab    : raggio tabulato [Å] — metallico CN12 per i metalli, covalente
+   *            per i semiconduttori (Kittel / Greenwood-Earnshaw)
+   *  thetaD  : temperatura di Debye [K]                      (Kittel, cap. 5)
+   *  Tm      : temperatura di fusione [K]                    (CRC Handbook)
+   *  valence : elettroni contati dal modello 1D di Kronig-Penney. Per i metalli
+   *            semplici sono gli elettroni di valenza (Ashcroft-Mermin, Tab. 1.1);
+   *            per i metalli di transizione solo gli elettroni s (le bande d
+   *            non sono descritte da un modello a elettroni quasi liberi);
+   *            per GaAs è la media per atomo (3+5)/2 = 4.
+   *  epm     : chiave dei parametri di pseudopotenziale empirico (bande 3D)
+   *  pseudo  : chiave dei parametri di empty core (strumento pseudopotenziale)
+   *
+   *  Nota sul raggio: il raggio CN=12 è un po' maggiore del raggio di contatto
+   *  in una CCC (CN=8): correzione di Goldschmidt (~3%).
+   * ------------------------------------------------------------------------- */
+  const MATERIAL_GROUPS = [
+    { id: 'fcc', label: 'Metalli CFC' },
+    { id: 'bcc', label: 'Metalli CCC' },
+    { id: 'semi', label: 'Semiconduttori' },
+    { id: 'other', label: 'Altri casi didattici' }
+  ];
+  const MATERIALS = {
+    // ---- metalli CFC ----
+    Cu:   { name: 'Rame',      group: 'fcc', species: ['Cu'], structure: 'fcc', a: 3.615, rTab: 1.28, thetaD: 343, Tm: 1358, valence: 1 },
+    Al:   { name: 'Alluminio', group: 'fcc', species: ['Al'], structure: 'fcc', a: 4.050, rTab: 1.43, thetaD: 428, Tm: 933,  valence: 3, epm: 'Al', pseudo: 'Al' },
+    Au:   { name: 'Oro',       group: 'fcc', species: ['Au'], structure: 'fcc', a: 4.078, rTab: 1.44, thetaD: 165, Tm: 1337, valence: 1 },
+    Ag:   { name: 'Argento',   group: 'fcc', species: ['Ag'], structure: 'fcc', a: 4.086, rTab: 1.44, thetaD: 225, Tm: 1235, valence: 1 },
+    Ni:   { name: 'Nichel',    group: 'fcc', species: ['Ni'], structure: 'fcc', a: 3.524, rTab: 1.24, thetaD: 450, Tm: 1728, valence: 2 },
+    // ---- metalli CCC ----
+    Fe:   { name: 'Ferro α',   group: 'bcc', species: ['Fe'], structure: 'bcc', a: 2.8665, rTab: 1.26, thetaD: 470, Tm: 1811, valence: 2 },
+    W:    { name: 'Tungsteno', group: 'bcc', species: ['W'],  structure: 'bcc', a: 3.165, rTab: 1.39, thetaD: 400, Tm: 3695, valence: 2 },
+    Mo:   { name: 'Molibdeno', group: 'bcc', species: ['Mo'], structure: 'bcc', a: 3.147, rTab: 1.40, thetaD: 450, Tm: 2896, valence: 1 },
+    // ---- semiconduttori ----
+    Si:   { name: 'Silicio',   group: 'semi', species: ['Si'], structure: 'diamond', a: 5.431, rTab: 1.175, thetaD: 645, Tm: 1687, valence: 4, epm: 'Si' },
+    Ge:   { name: 'Germanio',  group: 'semi', species: ['Ge'], structure: 'diamond', a: 5.658, rTab: 1.225, thetaD: 374, Tm: 1211, valence: 4, epm: 'Ge' },
+    // GaAs: Θ_D ≈ 344 K; rTab = media dei raggi covalenti di Ga e As
+    GaAs: { name: 'Arseniuro di gallio', group: 'semi', species: ['Ga', 'As'], structure: 'zincblende', a: 5.653, rTab: 1.22, thetaD: 344, Tm: 1511, valence: 4, epm: 'GaAs' },
+    // ---- altri ----
+    Na:   { name: 'Sodio (a 5 K)', group: 'other', species: ['Na'], structure: 'bcc', a: 4.225, rTab: 1.90, thetaD: 158, Tm: 371, valence: 1, pseudo: 'Na' },
+    // α-Po: unico elemento cubico semplice. Θ_D non misurata in modo affidabile.
+    Po:   { name: 'Polonio α', group: 'other', species: ['Po'], structure: 'sc', a: 3.359, rTab: 1.68, thetaD: null, Tm: 527, valence: 6 },
+    // Mg è esagonale compatto: niente strumenti cubici, sì 1D e pseudopotenziale.
+    Mg:   { name: 'Magnesio (hcp)', group: 'other', species: ['Mg'], structure: 'hcp', a: 3.209, rTab: 1.60, thetaD: 400, Tm: 923, valence: 2, pseudo: 'Mg' }
+  };
+  // Campi derivati: formula, Z e massa medi (usati da Debye-Waller e normalizzazioni),
+  // fattore di forma della prima specie (compatibilità), alias rMetal.
+  for (const [key, m] of Object.entries(MATERIALS)) {
+    const els = m.species.map(s => ELEMENTS[s]);
+    m.key = key;
+    m.formula = m.species.join('');
+    m.Z = els.reduce((s, e) => s + e.Z, 0) / els.length;
+    m.A = els.reduce((s, e) => s + e.A, 0) / els.length;
+    m.cm = els[0].cm;
+    m.rMetal = m.rTab;
+  }
+  const CUBIC = ['sc', 'bcc', 'fcc', 'diamond', 'zincblende'];
+
+  /** Quali materiali ogni strumento sa trattare: true, oppure il motivo per cui no.
+   *  L'elenco mostrato è sempre lo stesso; le voci non trattabili restano visibili
+   *  ma disabilitate, con il motivo. */
+  function supports(tool, key) {
+    const m = MATERIALS[key];
+    switch (tool) {
+      case 'lattice': case 'ewald': case 'powder':
+        return CUBIC.includes(m.structure) || 'reticolo esagonale';
+      case 'kp': case 'tb':
+        return true;
+      case 'pseudo':
+        return !!m.pseudo || 'raggio di empty core non tabulato';
+      case 'bands3d':
+        return !!m.epm || (m.group === 'fcc' || m.group === 'bcc' ? 'servono bande d (metallo di transizione)' : 'parametri EPM non tabulati');
+      default: return true;
+    }
+  }
+
+  /** Distanza tra primi vicini [Å] = 2·r_contatto (per hcp ideale coincide con a). */
+  function nearestNeighbor(mat) {
+    const s = STRUCTURES[mat.structure];
+    return s ? 2 * s.touch * mat.a : mat.a;
+  }
 
   /* ===========================================================================
    * CRISTALLOGRAFIA
@@ -119,21 +189,24 @@ const Physics = (() => {
 
   /** Siti della cella convenzionale da disegnare, con il peso con cui ciascun
    *  atomo "appartiene" alla cella (vertice 1/8, faccia 1/2, centro 1). */
+  const TETRA_SITES = [[.25, .25, .25], [.75, .75, .25], [.75, .25, .75], [.25, .75, .75]];
   function cellSites(structure) {
     const sites = [];
     for (const x of [0, 1]) for (const y of [0, 1]) for (const z of [0, 1])
       sites.push({ p: [x, y, z], w: 1 / 8, kind: 'corner' });
     if (structure === 'bcc') sites.push({ p: [0.5, 0.5, 0.5], w: 1, kind: 'body' });
-    if (structure === 'fcc' || structure === 'diamond') {
+    const tetra = structure === 'diamond' || structure === 'zincblende';
+    if (structure === 'fcc' || tetra) {
       for (const ax of [0, 1, 2]) for (const v of [0, 1]) {
         const p = [0.5, 0.5, 0.5]; p[ax] = v;
         sites.push({ p, w: 1 / 2, kind: 'face' });
       }
     }
-    if (structure === 'diamond') {            // 4 atomi interni in siti tetraedrici
-      for (const p of [[.25, .25, .25], [.75, .75, .25], [.75, .25, .75], [.25, .75, .75]])
-        sites.push({ p, w: 1, kind: 'body' });
+    if (tetra) {            // 4 atomi interni nei siti tetraedrici (secondo sottoreticolo CFC)
+      for (const p of TETRA_SITES) sites.push({ p, w: 1, kind: 'body' });
     }
+    // specie: nella blenda il sottoreticolo interno è dell'anione (indice 1)
+    for (const st of sites) st.species = (structure === 'zincblende' && st.kind === 'body') ? 1 : 0;
     return sites;
   }
 
@@ -153,6 +226,12 @@ const Physics = (() => {
         const p = (u, w) => { const q = [0, 0, 0]; q[ax] = v; q[i] = u; q[j] = w; return q; };
         seg.push([p(0, 0), p(1, 1)], [p(1, 0), p(0, 1)]);
       }
+    } else if (structure === 'diamond' || structure === 'zincblende') {
+      // 16 legami: ogni atomo interno è legato a 4 atomi del primo sottoreticolo
+      // agli spostamenti (−,−,−)/4, (+,+,−)/4, (+,−,+)/4, (−,+,+)/4
+      const off = [[-1, -1, -1], [1, 1, -1], [1, -1, 1], [-1, 1, 1]];
+      for (const t of TETRA_SITES) for (const o of off)
+        seg.push([t, t.map((v, i) => v + o[i] / 4)]);
     }
     return seg;
   }
@@ -167,13 +246,50 @@ const Physics = (() => {
     return { N: s.N, Vcell, Vatoms, apf: Vatoms / Vcell, rTouch, apfIdeal: s.apfIdeal };
   }
 
-  /** Fattore di forma atomico f(s) (Cromer-Mann), s = sinθ/λ. Per s=0 → ≈ Z. */
-  function formFactor(mat, s) {
-    const c = mat.cm;
-    if (!c) return mat.Z;
+  /** Fattore di forma atomico f(s) (Cromer-Mann) di un elemento, s = sinθ/λ. Per s=0 → ≈ Z. */
+  function formFactorEl(el, s) {
+    const c = el.cm;
+    if (!c) return el.Z;
     const s2 = s * s;
     return c[0] * Math.exp(-c[1] * s2) + c[2] * Math.exp(-c[3] * s2) +
            c[4] * Math.exp(-c[5] * s2) + c[6] * Math.exp(-c[7] * s2) + c[8];
+  }
+  /** Fattore di forma della prima specie del materiale (compatibilità). */
+  function formFactor(mat, s) { return formFactorEl(ELEMENTS[mat.species[0]], s); }
+
+  /** Elemento che occupa ciascun sito della base.
+   *  - blenda con due specie: siti 0-3 catione, 4-7 anione
+   *  - struttura "ipotetica" scelta dall'utente: tutti i siti alla prima specie */
+  function siteElements(mat, structure) {
+    const els = mat.species.map(k => ELEMENTS[k]);
+    return STRUCTURES[structure].basis.map((_, i) =>
+      (structure === 'zincblende' && els.length > 1 && i >= 4) ? els[1] : els[0]);
+  }
+
+  /** Fattore di struttura completo:  F(hkl) = Σⱼ fⱼ(s)·exp[2πi(h xⱼ + k yⱼ + l zⱼ)].
+   *  Con specie diverse le "estinzioni" del diamante diventano riflessioni
+   *  deboli: in GaAs F(200) = 4(f_Ga − f_As) ≠ 0. */
+  function structureFactor(mat, structure, h, k, l, s) {
+    const basis = STRUCTURES[structure].basis, els = siteElements(mat, structure);
+    let re = 0, im = 0;
+    basis.forEach(([x, y, z], j) => {
+      const f = formFactorEl(els[j], s);
+      const ph = 2 * Math.PI * (h * x + k * y + l * z);
+      re += f * Math.cos(ph); im += f * Math.sin(ph);
+    });
+    if (Math.abs(re) < 1e-9) re = 0;
+    if (Math.abs(im) < 1e-9) im = 0;
+    return { re, im, abs2: re * re + im * im };
+  }
+  /** Estinzione sistematica: F = 0 per ogni s (si valuta con fⱼ = Zⱼ). */
+  function isExtinct(mat, structure, h, k, l) {
+    const basis = STRUCTURES[structure].basis, els = siteElements(mat, structure);
+    let re = 0, im = 0;
+    basis.forEach(([x, y, z], j) => {
+      const ph = 2 * Math.PI * (h * x + k * y + l * z);
+      re += els[j].Z * Math.cos(ph); im += els[j].Z * Math.sin(ph);
+    });
+    return re * re + im * im < 1e-6;
   }
 
   /** Parte geometrica del fattore di struttura per un cristallo monoatomico:
@@ -245,8 +361,7 @@ const Physics = (() => {
     const g0 = 2 * Math.PI / a;
     for (let h = -hmax; h <= hmax; h++) for (let k = -hmax; k <= hmax; k++) for (let l = -hmax; l <= hmax; l++) {
       if (!h && !k && !l) continue;
-      const S = geomStructureFactor(structure, h, k, l);
-      const extinct = S.abs2 < 1e-6;
+      const extinct = isExtinct(mat, structure, h, k, l);
       const G0 = [g0 * h, g0 * k, g0 * l];
       const G = [
         R[0][0] * G0[0] + R[0][1] * G0[1] + R[0][2] * G0[2],
@@ -263,13 +378,13 @@ const Physics = (() => {
             const kk = 2 * Math.PI / lam;
             const kout = [kk * u[0] + G[0], kk * u[1] + G[1], kk * u[2] + G[2]];
             const s = Math.sqrt(G2) / (4 * Math.PI);            // sinθ/λ = |G|/4π
-            const f = formFactor(mat, s);
+            const F = structureFactor(mat, structure, h, k, l, s);
             node.lit = true;
             node.lambda = lam;
             node.kout = kout;
             node.k = kk;
             node.twoTheta = Math.acos(Math.min(1, (kout[0] * u[0] + kout[1] * u[1] + kout[2] * u[2]) / kk)) * CONST.DEG;
-            node.I = S.abs2 * f * f;                              // |F|² (senza Lorentz-polarizzazione)
+            node.I = F.abs2;                                      // |F|² (senza Lorentz-polarizzazione)
           }
         }
       }
@@ -320,19 +435,19 @@ const Physics = (() => {
       const th = Math.asin(sinT);
       const tt = 2 * th * CONST.DEG;
       if (tt < tt0 || tt > tt1) continue;
-      const S = geomStructureFactor(structure, h, k, l);
-      if (S.abs2 < 1e-6) continue;                 // estinzione sistematica
+      if (isExtinct(mat, structure, h, k, l)) continue;   // estinzione sistematica
       const s = sinT / lambda;
+      const F = structureFactor(mat, structure, h, k, l, s);
       const f = formFactor(mat, s);
       const m = multiplicity(h, k, l);
       const LP = (1 + Math.cos(2 * th) ** 2) / (sinT * sinT * Math.cos(th));
-      const I0 = m * S.abs2 * f * f * LP;          // senza Debye-Waller
+      const I0 = m * F.abs2 * LP;                  // senza Debye-Waller
       const DW = Math.exp(-2 * B * s * s);
       const bSize = K * lambda / (L * Math.cos(th));
       const bStrain = 4 * microstrain * Math.tan(th);
       const H = Math.sqrt(Hinst ** 2 + bSize ** 2 + bStrain ** 2) * CONST.DEG; // gradi
       const Hl = H + 4 * gradient * Math.tan(th) * CONST.DEG;
-      peaks.push({ h, k, l, d, tt, m, F2: S.abs2 * f * f, f, I0, I: I0 * DW, DW, H, Hl, Hr: H, bSizeDeg: bSize * CONST.DEG });
+      peaks.push({ h, k, l, d, tt, m, F2: F.abs2, f, I0, I: I0 * DW, DW, H, Hl, Hr: H, bSizeDeg: bSize * CONST.DEG });
     }
 
     // 2) profilo: somma di pseudo-Voigt "split" (stessa altezza al centro,
@@ -357,12 +472,14 @@ const Physics = (() => {
     let ref = 0;
     for (let i = 0; i < n; i++) ref = Math.max(ref, yRef[i]);
     ref = ref || 1;
-    const Z2 = mat.Z * mat.Z;
+    const els = siteElements(mat, structure);
+    const sumZ2 = els.reduce((q, e) => q + e.Z * e.Z, 0);
     for (let i = 0; i < n; i++) {
       const th = x[i] / 2 / CONST.DEG;
       const s = Math.sin(th) / lambda;
-      const f = formFactor(mat, s);
-      const tds = 40 * N / 4 * (f * f / Z2) * (1 - Math.exp(-2 * B * s * s)); // diffusione termica diffusa
+      // diffusione termica diffusa ∝ Σⱼ fⱼ² [1 − exp(−2Bs²)] (normalizzata a s = 0)
+      const sumF2 = els.reduce((q, e) => q + formFactorEl(e, s) ** 2, 0);
+      const tds = 40 * N / 4 * (sumF2 / sumZ2) * (1 - Math.exp(-2 * B * s * s));
       const air = 1.2 * Math.exp(-(x[i] - tt0) / 25) + 0.4;                   // fondo d'aria/fluorescenza
       y[i] = y[i] / ref * 100 + tds + air;
     }
@@ -646,13 +763,236 @@ const Physics = (() => {
     return { P, rc, r, phi, psi, Vtrue, Vps, interp, nodesAE, nodesPS, overlap: [o1, o2] };
   }
 
+  /* ===========================================================================
+   * SCHEMA A ZONA ESTESA (1D)
+   *
+   *  Nello schema ridotto ogni banda n vive in |k| ≤ π/a. Nello schema esteso
+   *  la banda n occupa la n-esima zona di Brillouin: (n−1)π/a ≤ |k| ≤ nπ/a.
+   *  Le bande dispari partono dal centro zona (minimo a k_r = 0), le pari dal
+   *  bordo (minimo a k_r = 1), quindi con k_r = |k|a/π ∈ [0,1]:
+   *     n dispari:  k_est = (n − 1) + k_r
+   *     n pari   :  k_est =  n − k_r
+   *  (in unità di π/a). Con V₀ → 0 si ritrova la parabola E = ħ²k²/2m intera.
+   * ========================================================================= */
+  function extendedK(kr, n) {
+    return n % 2 === 1 ? (n - 1) + kr : n - kr;
+  }
+
+  /* ===========================================================================
+   * BANDE REALI 3D — METODO DELLO PSEUDOPOTENZIALE EMPIRICO (EPM)
+   *
+   *  Funzioni d'onda sviluppate in onde piane: ψ_k = Σ_G c_G e^{i(k+G)·r}.
+   *  Hamiltoniana (Rydberg, lunghezze in bohr):
+   *     H_{G,G'} = |k+G|² δ_{GG'} + V(G−G')
+   *  Per diamante/blenda, con l'origine nel centro del legame e τ = a(1,1,1)/8:
+   *     V(q) = V_S(|q|²)·cos(q·τ) + i·V_A(|q|²)·sin(q·τ)
+   *  V_S, V_A sono i fattori di forma simmetrico e antisimmetrico, diversi da
+   *  zero solo per |q|² = 3, 4, 8, 11 (in unità di (2π/a)²).
+   *  Parametri: M. L. Cohen e T. K. Bergstresser, Phys. Rev. 141, 789 (1966).
+   *  Per l'alluminio (CFC, un atomo all'origine) bastano due coefficienti
+   *  locali V(111), V(200) ricavati dalla superficie di Fermi:
+   *  N. W. Ashcroft, Phil. Mag. 8, 2055 (1963).
+   *  Accoppiamento spin-orbita trascurato (come nel lavoro originale).
+   *  expGap: gap sperimentale a 300 K [eV] (Kittel, cap. 8), per confronto.
+   * ========================================================================= */
+  const RY = 13.6057;  // eV
+  const EPM = {
+    Si:   { a: 5.43, expGap: 1.12,  VS: { 3: -0.21, 8: 0.04, 11: 0.08 }, VA: {}, filled: 4 },
+    Ge:   { a: 5.66, expGap: 0.66,  VS: { 3: -0.23, 8: 0.01, 11: 0.06 }, VA: {}, filled: 4 },
+    GaAs: { a: 5.64, expGap: 1.42,  VS: { 3: -0.23, 8: 0.01, 11: 0.06 }, VA: { 3: 0.07, 4: 0.05, 11: 0.01 }, filled: 4 },
+    Al:   { a: 4.05, local: { 3: 0.0179, 4: 0.0562 }, electrons: 3 }
+  };
+
+  /** Punti ad alta simmetria della zona di Brillouin CFC, in unità di 2π/a. */
+  const BZ_POINTS = {
+    L: [0.5, 0.5, 0.5], G: [0, 0, 0], X: [1, 0, 0], U: [1, 0.25, 0.25], K: [0.75, 0.75, 0]
+  };
+  /** Percorso standard L → Γ → X → U|K → Γ (U e K sono equivalenti: salto senza lunghezza). */
+  const BZ_PATH = [['L', 'G', 'Λ'], ['G', 'X', 'Δ'], ['X', 'U', ''], ['K', 'G', 'Σ']];
+
+  /** Vettori del reticolo reciproco della CFC (reticolo CCC: indici tutti pari
+   *  o tutti dispari) con |G|² ≤ g2max, in unità di 2π/a. */
+  function fccGVectors(g2max) {
+    const out = [], m = Math.ceil(Math.sqrt(g2max));
+    for (let h = -m; h <= m; h++) for (let k = -m; k <= m; k++) for (let l = -m; l <= m; l++) {
+      const par = [h, k, l].map(v => ((v % 2) + 2) % 2);
+      if (!(par[0] === par[1] && par[1] === par[2])) continue;
+      if (h * h + k * k + l * l <= g2max) out.push([h, k, l]);
+    }
+    return out;
+  }
+
+  /** Autovalori di una matrice reale simmetrica n×n (array piatto, viene distrutto):
+   *  riduzione di Householder a tridiagonale + algoritmo QL implicito
+   *  (tred2 + tqli, Numerical Recipes cap. 11, versione "solo autovalori"). */
+  function symEigenvalues(a, n) {
+    const d = new Float64Array(n), e = new Float64Array(n);
+    for (let i = n - 1; i > 0; i--) {
+      const l = i - 1, ri = i * n;
+      let h = 0, scale = 0;
+      if (l > 0) {
+        for (let k = 0; k <= l; k++) scale += Math.abs(a[ri + k]);
+        if (scale === 0) e[i] = a[ri + l];
+        else {
+          for (let k = 0; k <= l; k++) { a[ri + k] /= scale; h += a[ri + k] * a[ri + k]; }
+          let f = a[ri + l];
+          let g = f >= 0 ? -Math.sqrt(h) : Math.sqrt(h);
+          e[i] = scale * g; h -= f * g; a[ri + l] = f - g; f = 0;
+          for (let j = 0; j <= l; j++) {
+            const rj = j * n;
+            g = 0;
+            for (let k = 0; k <= j; k++) g += a[rj + k] * a[ri + k];
+            for (let k = j + 1; k <= l; k++) g += a[k * n + j] * a[ri + k];
+            e[j] = g / h; f += e[j] * a[ri + j];
+          }
+          const hh = f / (h + h);
+          for (let j = 0; j <= l; j++) {
+            const rj = j * n;
+            f = a[ri + j]; g = e[j] - hh * f; e[j] = g;
+            for (let k = 0; k <= j; k++) a[rj + k] -= (f * e[k] + g * a[ri + k]);
+          }
+        }
+      } else e[i] = a[ri + l];
+      d[i] = h;
+    }
+    for (let i = 0; i < n; i++) d[i] = a[i * n + i];
+    // QL implicito sulla tridiagonale (d diagonale, e sottodiagonale)
+    for (let i = 1; i < n; i++) e[i - 1] = e[i];
+    e[n - 1] = 0;
+    for (let l = 0; l < n; l++) {
+      let iter = 0, m;
+      do {
+        for (m = l; m < n - 1; m++) {
+          const dd = Math.abs(d[m]) + Math.abs(d[m + 1]);
+          if (Math.abs(e[m]) <= 1e-15 * dd) break;
+        }
+        if (m !== l) {
+          if (iter++ === 60) throw new Error('QL: troppe iterazioni');
+          let g = (d[l + 1] - d[l]) / (2 * e[l]);
+          let r = Math.hypot(g, 1);
+          g = d[m] - d[l] + e[l] / (g + (g >= 0 ? Math.abs(r) : -Math.abs(r)));
+          let s = 1, c = 1, p = 0, i;
+          for (i = m - 1; i >= l; i--) {
+            let f = s * e[i];
+            const b = c * e[i];
+            e[i + 1] = (r = Math.hypot(f, g));
+            if (r === 0) { d[i + 1] -= p; e[m] = 0; break; }
+            s = f / r; c = g / r; g = d[i + 1] - p; r = (d[i] - g) * s + 2 * c * b;
+            d[i + 1] = g + (p = s * r); g = c * r - b;
+          }
+          if (r === 0 && i >= l) continue;
+          d[l] -= p; e[l] = g; e[m] = 0;
+        }
+      } while (m !== l);
+    }
+    return Array.from(d).sort((x, y) => x - y);
+  }
+
+  /** Autovalori di H = |k+G|² + V(G−G') in un punto k (unità 2π/a), in eV. */
+  function epmEigen(P, Gs, k, nBands) {
+    const n = Gs.length, abohr = P.a / CONST.BOHR;
+    const unit = Math.pow(2 * Math.PI / abohr, 2);           // (2π/a)² in Ry
+    const complex = P.VA && Object.keys(P.VA).length > 0;   // blenda: H hermitiana complessa
+    const N = complex ? 2 * n : n;
+    const M = new Float64Array(N * N);
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      let re = 0, im = 0;
+      if (i === j) {
+        const q = [k[0] + Gs[i][0], k[1] + Gs[i][1], k[2] + Gs[i][2]];
+        re = unit * (q[0] * q[0] + q[1] * q[1] + q[2] * q[2]);
+      } else {
+        const q = [Gs[i][0] - Gs[j][0], Gs[i][1] - Gs[j][1], Gs[i][2] - Gs[j][2]];
+        const q2 = q[0] * q[0] + q[1] * q[1] + q[2] * q[2];
+        if (P.local) {
+          re = P.local[q2] || 0;                              // un atomo all'origine
+        } else {
+          const ph = Math.PI / 4 * (q[0] + q[1] + q[2]);      // q·τ con τ = (a/8)(1,1,1)
+          re = (P.VS[q2] || 0) * Math.cos(ph);
+          im = (P.VA[q2] || 0) * Math.sin(ph);
+        }
+      }
+      if (complex) {
+        // H = A + iB  →  matrice reale [[A, −B], [B, A]] con autovalori doppi
+        M[i * N + j] = re; M[(i + n) * N + (j + n)] = re;
+        M[i * N + (j + n)] = -im; M[(i + n) * N + j] = im;
+      } else M[i * N + j] = re;
+    }
+    let ev = symEigenvalues(M, N);
+    if (complex) ev = ev.filter((_, i) => i % 2 === 0);
+    return ev.slice(0, nBands).map(x => x * RY);
+  }
+
+  /** Struttura a bande lungo L-Γ-X-U|K-Γ.
+   *  Restituisce x (ascissa del percorso), etichette dei punti, bande in eV
+   *  con zero al massimo della banda di valenza (semiconduttori) o al livello
+   *  di Fermi (Al), e l'analisi della gap. */
+  function epmBands(key, { g2max = 19, step = 0.025, nBands = 8 } = {}) {
+    const P = EPM[key];
+    const Gs = fccGVectors(g2max);
+    const xs = [], ks = [], ticks = [], seg = [];
+    let x = 0;
+    BZ_PATH.forEach(([A, B, name], si) => {
+      const pa = BZ_POINTS[A], pb = BZ_POINTS[B];
+      const len = Math.hypot(pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]);
+      const nseg = Math.max(2, Math.round(len / step));
+      if (si === 0) ticks.push({ x, label: A === 'G' ? 'Γ' : A });
+      else if (A !== BZ_PATH[si - 1][1]) ticks[ticks.length - 1].label += ',' + A;  // U,K
+      for (let i = (si === 0 ? 0 : 1); i <= nseg; i++) {
+        const t = i / nseg;
+        ks.push([pa[0] + t * (pb[0] - pa[0]), pa[1] + t * (pb[1] - pa[1]), pa[2] + t * (pb[2] - pa[2])]);
+        xs.push(x + t * len); seg.push({ si, t, name, from: A, to: B });
+      }
+      x += len;
+      ticks.push({ x, label: B === 'G' ? 'Γ' : B });
+    });
+    const E = ks.map(k => epmEigen(P, Gs, k, nBands));
+    const bands = Array.from({ length: nBands }, (_, b) => E.map(e => e[b]));
+
+    let ref, info;
+    if (P.local) {
+      // Metallo: livello di Fermi dell'elettrone libero con n = Z·4/a³
+      // (al primo ordine il potenziale debole non lo sposta: V(G=0) = 0)
+      const n = P.electrons * 4 / Math.pow(P.a, 3);
+      const kF = Math.cbrt(3 * Math.PI * Math.PI * n);
+      ref = CONST.HBAR2_2M * kF * kF;
+      const crossing = bands.filter(b => Math.min(...b) < ref && Math.max(...b) > ref).length;
+      info = { metal: true, EF: 0, kF, crossing };
+    } else {
+      const vb = bands[P.filled - 1], cb = bands[P.filled];
+      let iv = 0, ic = 0;
+      vb.forEach((v, i) => { if (v > vb[iv]) iv = i; });
+      cb.forEach((v, i) => { if (v < cb[ic]) ic = i; });
+      ref = vb[iv];
+      const where = i => {
+        const s = seg[i];
+        const near = (s.t < 1e-9 ? s.from : s.t > 1 - 1e-9 ? s.to : null);
+        if (near) return near === 'G' ? 'Γ' : near;
+        const from = s.from === 'G' ? 'Γ' : s.from, to = s.to === 'G' ? 'Γ' : s.to;
+        return `${s.name || from + to} (${(s.t * 100).toFixed(0)}% da ${from} a ${to})`;
+      };
+      const kv = ks[iv], kc = ks[ic];
+      const direct = Math.hypot(kv[0] - kc[0], kv[1] - kc[1], kv[2] - kc[2]) < 1e-6;
+      // gap diretta minima (stesso k)
+      let dmin = Infinity, id = 0;
+      cb.forEach((c, i) => { if (c - vb[i] < dmin) { dmin = c - vb[i]; id = i; } });
+      info = {
+        metal: false, gap: cb[ic] - vb[iv], direct,
+        vbm: { x: xs[iv], where: where(iv) }, cbm: { x: xs[ic], E: cb[ic] - ref, where: where(ic) },
+        directGap: dmin, directAt: where(id)
+      };
+    }
+    return { x: xs, ticks, bands: bands.map(b => b.map(v => v - ref)), info, nG: Gs.length, P };
+  }
+
   return {
-    CONST, WAVELENGTHS, STRUCTURES, MATERIALS, PSEUDO_ATOMS,
-    cellSites, closePackedSegments, packing, formFactor, geomStructureFactor, multiplicity,
+    CONST, WAVELENGTHS, STRUCTURES, ELEMENTS, MATERIALS, MATERIAL_GROUPS, PSEUDO_ATOMS, EPM,
+    supports, nearestNeighbor,
+    cellSites, closePackedSegments, packing, formFactor, formFactorEl, geomStructureFactor,
+    structureFactor, isExtinct, multiplicity,
     debyeWallerB, laueNodes, powderPattern,
-    kpRHS, kpBands, freeElectronFolded, kpFermi,
+    kpRHS, kpBands, freeElectronFolded, kpFermi, extendedK,
     harrisonT, tbMono, tbDiatomic, tbBandsVsA, phononMono, phononDiatomic,
-    pseudoSystem
+    pseudoSystem, epmBands, symEigenvalues
   };
 })();
 

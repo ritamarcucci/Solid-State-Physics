@@ -233,22 +233,26 @@ code { font-family: var(--font-mono); font-size: .92em; }
 .tool.active {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
+  /* riga di altezza FISSA (quella dello schermo): senza minmax(0,1fr) la riga
+     cresce con il contenuto, il pannello controlli non scorre più e gli
+     accordion si aprono fuori dallo schermo (il bug "non si aprono" su PC) */
+  grid-template-rows: minmax(0, 1fr);
   animation: viewIn .45s var(--ease) both;
 }
 
 /* ---- colonna visualizzazione (2/3) ---- */
 .viz-pane {
   display: flex; flex-direction: column; gap: 12px;
-  min-width: 0; min-height: 0; height: 100%;
+  min-width: 0; min-height: 0; height: 100%; overflow: hidden;
   padding: 18px 18px 18px 22px;
 }
-.viz-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: none; }
+.viz-head { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex: none; flex-wrap: wrap; }
 .viz-head h3 { font-size: 20px; }
 .badge {
-  flex: none;
-  max-width: 55%;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  padding: 5px 10px; border-radius: 99px;
+  flex: 0 1 auto;
+  max-width: 100%;
+  white-space: normal; overflow-wrap: anywhere; line-height: 1.35;
+  padding: 5px 10px; border-radius: 14px;
   font: 600 12px var(--font-mono);
   border: 1px solid var(--line-2); color: var(--muted);
   transition: background .3s, color .3s, border-color .3s;
@@ -271,13 +275,16 @@ code { font-family: var(--font-mono); font-size: .92em; }
 .three-host canvas { display: block; width: 100% !important; height: 100% !important; cursor: grab; touch-action: none; }
 .three-host canvas:active { cursor: grabbing; }
 .chart-host { padding: 10px; }
-.chart-host canvas { display: block; }
+/* Il canvas è posizionato in assoluto: così Chart.js misura il contenitore
+   senza che il canvas stesso ne influenzi l'altezza (evita la crescita
+   infinita del grafico a ogni ridimensionamento). */
+.chart-host canvas { display: block; position: absolute; left: 10px; top: 10px; }
 .chart-host.grow { flex: 1; }
 .chart-host.mini { flex: 0 0 130px; }
 
 .chart-row {
   flex: 1; min-height: 0;
-  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: minmax(0, 1fr); gap: 12px;
 }
 .chart-row.single { grid-template-columns: 1fr; }
 
@@ -332,12 +339,21 @@ code { font-family: var(--font-mono); font-size: .92em; }
  * ============================================================================= */
 .ctrl-pane {
   display: flex; flex-direction: column; gap: 14px;
-  min-width: 0; height: 100%;
+  min-width: 0; min-height: 0; height: 100%;
+  overscroll-behavior: contain;
   padding: 18px 18px 40px;
   overflow-y: auto;
   background: var(--bg-2);
   border-left: 1px solid var(--line);
 }
+/* CAUSA DEL BUG "la teoria non si apre su PC": il pannello è una colonna flex
+   ad altezza fissa e per default i figli si comprimono (flex-shrink: 1).
+   Un accordion aperto veniva schiacciato fino all'altezza del solo titolo
+   (con overflow: hidden il contenuto spariva). I figli non devono mai
+   comprimersi: è la colonna a scorrere. */
+.ctrl-pane > * { flex-shrink: 0; }
+.viz-head, .table-wrap { flex-shrink: 0; }
+
 .ctrl-group {
   display: flex; flex-direction: column; gap: 8px;
   padding: 14px;
@@ -406,10 +422,11 @@ input[type=range]:active::-webkit-slider-thumb { transform: scale(1.2); }
 .meter > span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent-2), var(--accent)); transition: width .15s; }
 
 /* accordion "Info" con la teoria */
-.info { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.info { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
 .info summary {
   display: flex; justify-content: space-between; align-items: center;
   padding: 12px 14px; cursor: pointer; list-style: none;
+  position: relative; z-index: 1; pointer-events: auto; user-select: none;
   font-size: 14px; font-weight: 600;
 }
 .info summary::-webkit-details-marker { display: none; }
@@ -444,11 +461,18 @@ mjx-container[display="true"] { margin: .4em 0 !important; overflow-x: auto; ove
   .nav-item { flex: 0 0 auto; width: auto; }
   .nav-item small, .side-foot { display: none; }
   #workspace { height: auto; overflow: visible; }
-  .tool.active { grid-template-columns: 1fr; height: auto; }
+  .tool.active { grid-template-columns: 1fr; grid-template-rows: auto auto; height: auto; }
   .viz-pane { height: 72vh; padding: 14px 16px; }
   .ewald-grid { grid-template-columns: 1fr; grid-template-rows: repeat(3, minmax(240px, 1fr)) auto; }
   #tool-ewald .viz-pane { height: auto; }
   .ctrl-pane { height: auto; overflow: visible; padding: 16px; border-left: 0; border-top: 1px solid var(--line); }
+}
+/* Schermi piccoli: il badge va sotto il titolo e occupa tutta la larghezza */
+@media (max-width: 768px) {
+  .viz-head { flex-direction: column; align-items: flex-start; }
+  .viz-head h3 { font-size: 18px; }
+  .badge { align-self: stretch; text-align: left; }
+  .chart-host.grow { min-height: 320px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }

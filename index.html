@@ -162,6 +162,8 @@
             <option value="sc">Cubico semplice (SC)</option>
             <option value="bcc">Cubico a corpo centrato (BCC)</option>
             <option value="fcc">Cubico a facce centrate (FCC)</option>
+            <option value="diamond">Diamante</option>
+            <option value="zincblende">Blenda di zinco</option>
           </select>
           <p class="hint" id="lat-struct-hint"></p>
         </div>
@@ -231,6 +233,7 @@
             <button type="button" class="btn" data-orient="rand">Casuale</button>
           </div>
           <label class="check"><input type="checkbox" id="ew-spin"> Rotazione continua attorno all'asse verticale</label>
+          <label class="check"><input type="checkbox" id="ew-block"> Mostra un blocco 2×2×2 di celle</label>
         </div>
         <div class="readout" id="ew-readout"></div>
         <details class="info">
@@ -323,7 +326,8 @@
         <div class="ctrl-group">
           <label for="kp-mat">Elettroni di valenza per cella (dal materiale)</label>
           <select id="kp-mat"></select>
-          <label class="check"><input type="checkbox" id="kp-free" checked> Mostra la parabola libera ripiegata</label>
+          <label class="check"><input type="checkbox" id="kp-free" checked> Mostra la parabola dell'elettrone libero</label>
+          <label class="check"><input type="checkbox" id="kp-ext"> Schema a zona estesa (invece della 1ª zona di Brillouin)</label>
         </div>
         <div class="readout" id="kp-readout"></div>
         <details class="info">
@@ -355,6 +359,9 @@
             <option value="mono">Monoatomica</option>
             <option value="di">Biatomica (A–B)</option>
           </select>
+          <label for="tb-mat">Materiale (imposta la distanza tra primi vicini)</label>
+          <select id="tb-mat"></select>
+          <label class="check"><input type="checkbox" id="tb-ext"> Schema a zona estesa</label>
           <label for="tb-kind">Eccitazioni</label>
           <select id="tb-kind">
             <option value="el">Elettroni (tight binding)</option>
@@ -432,6 +439,42 @@
             <p>$$|\psi\rangle = |\varphi\rangle - \sum_c |c\rangle\langle c|\varphi\rangle$$</p>
             <p>dove $\varphi$ è liscia. Sostituendo nell'equazione di Schrödinger, $\varphi$ obbedisce a $(T + V + V_R)\varphi = E\varphi$ con lo stesso autovalore, e $$V_R = \sum_c (E-E_c)|c\rangle\langle c| \ge 0$$ è repulsivo e localizzato nel core: cancella gran parte della buca coulombiana.</p>
             <p>La versione più semplice è l'<b>empty core</b> di Ashcroft: $V_{ps}=0$ per $r<r_c$ e $-Z_v e^2/r$ fuori. Un potenziale così debole spiega perché il modello a elettrone quasi libero funziona per i metalli semplici.</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- ===================== 2.4 BANDE REALI 3D (EPM) ===================== -->
+    <section class="tool" id="tool-bands3d" data-tool="bands3d" data-module="bands">
+      <div class="viz-pane">
+        <div class="viz-head"><h3>Bande reali lungo L → Γ → X → U,K → Γ</h3><span class="badge" id="b3-badge">—</span></div>
+        <div class="chart-host grow"><canvas id="b3-chart"></canvas></div>
+      </div>
+      <div class="ctrl-pane">
+        <div class="ctrl-group">
+          <label for="b3-mat">Materiale</label>
+          <select id="b3-mat"></select>
+          <label for="b3-basis">Onde piane nella base</label>
+          <select id="b3-basis">
+            <option value="11">51 onde piane (|G|² ≤ 11) — veloce</option>
+            <option value="19" selected>89 onde piane (|G|² ≤ 19)</option>
+            <option value="27">169 onde piane (|G|² ≤ 27) — convergenza</option>
+          </select>
+          <label class="check"><input type="checkbox" id="b3-gap" checked> Evidenzia gap, massimo di valenza e minimo di conduzione</label>
+          <p class="hint">Silicio: gap indiretta · GaAs: gap diretta · Alluminio: bande che attraversano il livello di Fermi.</p>
+        </div>
+        <div class="readout" id="b3-readout"></div>
+        <details class="info">
+          <summary>Teoria · pseudopotenziale empirico</summary>
+          <div class="info-body">
+            <p>Si sviluppano le funzioni di Bloch in onde piane, $\psi_{\mathbf k} = \sum_{\mathbf G} c_{\mathbf G}\, e^{i(\mathbf k+\mathbf G)\cdot\mathbf r}$, e si diagonalizza in ogni punto $\mathbf k$:</p>
+            <p>$$H_{\mathbf G\mathbf G'} = \frac{\hbar^2}{2m}|\mathbf k+\mathbf G|^2\,\delta_{\mathbf G\mathbf G'} + V(\mathbf G-\mathbf G')$$</p>
+            <p>Per diamante e blenda, con l'origine al centro del legame ($\boldsymbol\tau = \tfrac a8(1,1,1)$):</p>
+            <p>$$V(\mathbf q) = V_S(q^2)\cos(\mathbf q\cdot\boldsymbol\tau) + i\,V_A(q^2)\sin(\mathbf q\cdot\boldsymbol\tau)$$</p>
+            <p>Bastano tre fattori di forma simmetrici ($q^2 = 3, 8, 11$ in unità $(2\pi/a)^2$), più tre antisimmetrici per GaAs, che misura la differenza tra Ga e As: è il termine $V_A$ che rende la blenda meno simmetrica del diamante. Parametri di Cohen e Bergstresser (1966).</p>
+            <p>Per l'alluminio, metallo semplice, bastano due coefficienti $V_{111}$ e $V_{200}$ (Ashcroft, 1963): le bande sono quasi parabole libere con piccoli gap ai bordi di zona, e alcune attraversano $E_F$, quindi è un metallo.</p>
+            <p><b>Gap diretta o indiretta</b>: se il massimo della banda di valenza e il minimo di quella di conduzione cadono nello stesso $\mathbf k$ la gap è diretta (GaAs, in $\Gamma$) e un fotone basta per la transizione; se cadono in $\mathbf k$ diversi (Si: massimo in $\Gamma$, minimo all'85% di $\Gamma\to X$) serve anche un fonone. Per questo il silicio emette luce molto male.</p>
+            <p>Limiti del modello: niente spin-orbita e potenziale locale. La gap del Si risulta ≈ 0.8 eV contro 1.12 eV sperimentali, ma topologia delle bande e posizioni degli estremi sono corrette.</p>
           </div>
         </details>
       </div>
