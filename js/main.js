@@ -433,10 +433,10 @@ Tools.kp = {
     ['kp-mat', 'kp-free', 'kp-ext'].forEach(id => $(id).addEventListener('change', update));
     this.chart = Visuals.makeChart($('kp-chart'), { xTitle: 'k (π/a)', yTitle: 'E (eV)', x: { min: -1, max: 1, ticks: { stepSize: 0.5 } } });
     this.pot = Visuals.makeChart($('kp-pot'), { xTitle: 'x (Å)', yTitle: 'V (eV)', legend: false });
-    this.chart.options.plugins.tooltip.formatX = x => `k = ${x.toFixed(3)} π/a`;
-    this.chart.options.plugins.tooltip.formatY = y => `E = ${y.toFixed(3)} eV`;
-    this.pot.options.plugins.tooltip.formatX = x => `x = ${x.toFixed(2)} Å`;
-    this.pot.options.plugins.tooltip.formatY = y => `V = ${y.toFixed(2)} eV`;
+    this.chart.$fmtX = x => `k = ${x.toFixed(3)} π/a`;
+    this.chart.$fmtY = y => `E = ${y.toFixed(3)} eV`;
+    this.pot.$fmtX = x => `x = ${x.toFixed(2)} Å`;
+    this.pot.$fmtY = y => `V = ${y.toFixed(2)} eV`;
     this.update();
   },
   update() {
@@ -588,10 +588,10 @@ Tools.tb = {
       const left = right.map(p => ({ x: -p.x, y: p.y })).reverse();
       return [Visuals.line(right, color, opts), Visuals.line(left, color, { ...opts, label: '_', tip: opts.tip || opts.label })];
     };
-    this.ek.options.plugins.tooltip.formatX = x => `k = ${x.toFixed(3)} π/a`;
-    this.ek.options.plugins.tooltip.formatY = y => ph ? `ν = ${y.toFixed(3)} THz` : `E = ${y.toFixed(3)} eV`;
-    this.va.options.plugins.tooltip.formatX = x => `a = ${x.toFixed(2)} Å`;
-    this.va.options.plugins.tooltip.formatY = y => `E = ${y.toFixed(2)} eV`;
+    this.ek.$fmtX = x => `k = ${x.toFixed(3)} π/a`;
+    this.ek.$fmtY = y => ph ? `ν = ${y.toFixed(3)} THz` : `E = ${y.toFixed(3)} eV`;
+    this.va.$fmtX = x => `a = ${x.toFixed(2)} Å`;
+    this.va.$fmtY = y => `E = ${y.toFixed(2)} eV`;
     const setX = () => {
       const wide = ext && di;                  // con una sola banda lo schema esteso coincide col ridotto
       this.ek.options.scales.x.min = wide ? -2 : -1;
@@ -746,8 +746,8 @@ Tools.pseudo = {
     let amp = 0;
     this.xs.forEach((x, i) => { if (Math.abs(x) > 0.15) amp = Math.max(amp, Math.abs(this.psiV[i]), Math.abs(this.phiV[i])); });
     this.chart.options.scales.y2.min = -1.3 * amp; this.chart.options.scales.y2.max = 1.3 * amp;
-    this.chart.options.plugins.tooltip.formatX = x => `r = ${Math.abs(x).toFixed(3)} Å`;
-    this.chart.options.plugins.tooltip.formatY = y => `${y.toFixed(3)}`;
+    this.chart.$fmtX = x => `r = ${Math.abs(x).toFixed(3)} Å`;
+    this.chart.$fmtY = y => `${y.toFixed(3)}`;
     // normalizzazione della combinazione (1−t)ψ + tφ: ‖·‖² = (1−t)² + t² + 2t(1−t)⟨ψ|φ⟩
     let ov = 0; for (let i = 0; i < s.r.length; i++) ov += s.psi[i] * s.phi[i] * s.r[i] ** 2;
     this.ovPP = ov * (s.r[1] - s.r[0]);
@@ -828,11 +828,9 @@ Tools.bands3d = {
   init() {
     materialSelect($('b3-mat'), 'bands3d', 'Si');
     this.cache = new Map();
-    this.chart = Visuals.makeChart($('b3-chart'), {
-      yTitle: 'E (eV)', x: { min: 0, max: 1, ticks: { display: false }, grid: { display: false }, title: { display: false } },
-      y: { min: -13, max: 7 }
+    this.chart = Visuals.makeBandChart($('b3-chart'), {
+      describeK: x => this.describeK(x)          // titolo del tooltip: posizione lungo il percorso
     });
-    this.chart.options.layout = { padding: { bottom: 22 } };
     ['b3-mat', 'b3-basis'].forEach(id => $(id).addEventListener('change', () => this.update()));
     $('b3-gap').addEventListener('change', () => this.draw());
     this.update();
@@ -876,16 +874,23 @@ Tools.bands3d = {
     this.chart.data.datasets = r.bands.map((b, i) => {
       // valenza in ciano, conduzione in viola (per il metallo: un colore per banda)
       const col = info.metal ? C.series[i % C.series.length] : (i < filled ? C['accent-2'] : C['accent-3']);
-      const label = info.metal ? (i === 0 ? 'bande' : '_') : (i === 0 ? 'bande di valenza' : i === filled ? 'bande di conduzione' : '_');
-      const tip = info.metal ? `banda ${i + 1}` : `banda ${i + 1} (${i < filled ? 'valenza' : 'conduzione'})`;
-      return Visuals.line(r.x.map((x, j) => ({ x, y: b[j] })), col, { width: 2, label, tip });
+      // ogni banda ha un'etichetta vera (letta dal tooltip); in legenda compare
+      // solo la prima di ogni gruppo, per non affollarla
+      const label = info.metal ? `Banda ${i + 1}` : `Banda ${i + 1} (${i < filled ? 'valenza' : 'conduzione'})`;
+      const inLegend = info.metal ? i === 0 : (i === 0 || i === filled);
+      const ds = Visuals.line(r.x.map((x, j) => ({ x, y: b[j] })), col, { width: 2, label });
+      ds.hideInLegend = !inLegend;
+      ds.legendText = info.metal ? 'bande' : (i === 0 ? 'bande di valenza' : 'bande di conduzione');
+      return ds;
     });
-    // tooltip: posizione lungo il percorso e energia per QUALSIASI banda
-    this.chart.options.plugins.tooltip.formatX = x => this.describeK(x);
-    this.chart.options.plugins.tooltip.formatY = y => `E = ${y.toFixed(3)} eV${info.metal ? ' (da E_F)' : ' (dal VBM)'}`;
     this.chart.options.scales.x.max = xmax;
-    this.chart.options.scales.y.min = info.metal ? -14 : -13;
-    this.chart.options.scales.y.max = info.metal ? 10 : 7;
+    // asse Y senza massimo rigido: si estende a tutte le bande calcolate
+    // (suggestedMin/Max fissano solo l'estensione minima della finestra)
+    const allE = r.bands.flat();
+    const y = this.chart.options.scales.y;
+    delete y.min; delete y.max;
+    y.suggestedMin = Math.min(-14, Math.floor(Math.min(...allE)) - 1);
+    y.suggestedMax = Math.max(15, Math.ceil(Math.max(...allE)) + 1);
     const ov = { xTicks: r.ticks.map(t => ({ x: t.x, label: t.label })), hLines: [] };
     if (info.metal) {
       ov.hLines.push({ y: 0, color: C.accent, dash: [6, 4], label: 'E_F' });

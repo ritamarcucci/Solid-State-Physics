@@ -581,10 +581,13 @@ const Visuals = (() => {
             callbacks: {
               title: () => '',
               label: c => {
-                const ds = c.dataset, o = c.chart.options.plugins.tooltip;
+                // I formattatori stanno sull'istanza (chart.$fmtX / $fmtY), NON in
+                // options: Chart.js tratta ogni funzione dentro options come opzione
+                // "scriptable", la chiama da sé e la sostituisce con il risultato.
+                const ds = c.dataset, ch = c.chart;
                 const name = ds.tip || (ds.label && !ds.label.startsWith('_') ? ds.label : 'curva');
-                const xs = o.formatX ? o.formatX(c.parsed.x) : `x = ${c.parsed.x.toFixed(3)}`;
-                const ys = o.formatY ? o.formatY(c.parsed.y) : `y = ${c.parsed.y.toFixed(3)}`;
+                const xs = typeof ch.$fmtX === 'function' ? ch.$fmtX(c.parsed.x) : `x = ${c.parsed.x.toFixed(3)}`;
+                const ys = typeof ch.$fmtY === 'function' ? ch.$fmtY(c.parsed.y) : `y = ${c.parsed.y.toFixed(3)}`;
                 return `${name} — ${xs}, ${ys}`;
               }
             }
@@ -593,6 +596,68 @@ const Visuals = (() => {
         },
         elements: { point: { radius: 0, hoverRadius: 3 }, line: { tension: 0 } },
         scales
+      }
+    });
+  }
+
+  /** Grafico delle bande E(k) 3D.
+   *  - asse Y senza massimo rigido (suggestedMin/Max): nessuna banda tagliata
+   *  - interaction 'nearest' lungo x con intersect:false: passando il mouse in
+   *    qualsiasi punto si ottengono i valori di TUTTE le bande in quel k
+   *    (tutte le bande condividono le stesse ascisse, quindi sono tutte
+   *    "le più vicine" lungo x)
+   *  - etichette dei punti ad alta simmetria disegnate dal plugin overlays */
+  function makeBandChart(canvas, { describeK } = {}) {
+    return new Chart(canvas, {
+      type: 'scatter',
+      data: { datasets: [] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        layout: { padding: { bottom: 22 } },
+        interaction: {
+          mode: 'nearest',
+          axis: 'x',
+          intersect: false
+        },
+        elements: { point: { radius: 0, hoverRadius: 4 }, line: { tension: 0 } },
+        scales: {
+          x: { type: 'linear', min: 0, ticks: { display: false }, grid: { display: false } },
+          y: { type: 'linear', suggestedMin: -14, suggestedMax: 15, title: { display: true, text: 'E (eV)' } }
+        },
+        plugins: {
+          legend: {
+            display: true,
+            labels: {
+              boxWidth: 14, boxHeight: 2,
+              // in legenda una voce per gruppo (valenza / conduzione), non per banda
+              filter: (it, data) => !data.datasets[it.datasetIndex].hideInLegend,
+              generateLabels: chart => Chart.defaults.plugins.legend.labels.generateLabels(chart)
+                .map(l => ({ ...l, text: chart.data.datasets[l.datasetIndex].legendText || l.text }))
+            }
+          },
+          tooltip: {
+            enabled: true,
+            mode: 'nearest',
+            axis: 'x',
+            intersect: false,
+            // bande dall'energia più alta alla più bassa, come nel grafico
+            itemSort: (a, b) => b.parsed.y - a.parsed.y,
+            callbacks: {
+              title: items => (items.length && describeK ? describeK(items[0].parsed.x) : ''),
+              label: function (context) {
+                let label = context.dataset.label || '';
+                if (label) { label += ': '; }
+                if (context.parsed.y !== null) {
+                  label += context.parsed.y.toFixed(2) + ' eV';
+                }
+                return label;
+              }
+            }
+          },
+          overlays: {}
+        }
       }
     });
   }
@@ -613,6 +678,6 @@ const Visuals = (() => {
   return {
     COLORS, loadColors, initCharts, setActive,
     ThreeView, LatticeView, EwaldViews,
-    makeChart, line
+    makeChart, makeBandChart, line
   };
 })();
