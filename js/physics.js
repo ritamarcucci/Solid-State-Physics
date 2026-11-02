@@ -73,27 +73,29 @@ const Physics = (() => {
   /* ---------------------------------------------------------------------------
    * 3a. ELEMENTI — proprietà atomiche
    *  Z  : numero atomico     A : massa atomica [u]
+   *  zv : elettroni di valenza dell'atomo usati da pseudopotenziale e bande
+   *       (metalli di transizione e nobili: solo gli elettroni s)
    *  cm : coefficienti di Cromer-Mann del fattore di forma atomico
    *       f(s) = Σ aᵢ·exp(−bᵢ s²) + c,  s = sinθ/λ [Å⁻¹],  [a1,b1,a2,b2,a3,b3,a4,b4,c]
    *       (International Tables for Crystallography Vol. C, Tab. 6.1.1.4).
    *       Verifica: Σaᵢ + c ≈ Z (f a s = 0 conta tutti gli elettroni).
    * ------------------------------------------------------------------------- */
   const ELEMENTS = {
-    Na: { Z: 11, A: 22.990,  cm: [4.7626, 3.2850, 3.1736, 8.8422, 1.2674, 0.3136, 1.1128, 129.424, 0.6760] },
-    Mg: { Z: 12, A: 24.305,  cm: [5.4204, 2.8275, 2.1735, 79.2611, 1.2269, 0.3808, 2.3073, 7.1937, 0.8584] },
-    Al: { Z: 13, A: 26.982,  cm: [6.4202, 3.0387, 1.9002, 0.7426, 1.5936, 31.5472, 1.9646, 85.0886, 1.1151] },
-    Si: { Z: 14, A: 28.086,  cm: [6.2915, 2.4386, 3.0353, 32.3337, 1.9891, 0.6785, 1.5410, 81.6937, 1.1407] },
-    Fe: { Z: 26, A: 55.845,  cm: [11.7695, 4.7611, 7.3573, 0.3072, 3.5222, 15.3535, 2.3045, 76.8805, 1.0369] },
-    Ni: { Z: 28, A: 58.693,  cm: [12.8376, 3.8785, 7.2920, 0.2565, 4.4438, 12.1763, 2.3800, 66.3421, 1.0341] },
-    Cu: { Z: 29, A: 63.546,  cm: [13.3380, 3.5828, 7.1676, 0.2470, 5.6158, 11.3966, 1.6735, 64.8126, 1.1910] },
-    Ga: { Z: 31, A: 69.723,  cm: [15.2354, 3.0669, 6.7006, 0.2412, 4.3591, 10.7805, 2.9623, 61.4135, 1.7189] },
-    Ge: { Z: 32, A: 72.630,  cm: [16.0816, 2.8509, 6.3747, 0.2516, 3.7068, 11.4468, 3.6830, 54.7625, 2.1313] },
-    As: { Z: 33, A: 74.922,  cm: [16.6723, 2.6345, 6.0701, 0.2647, 3.4313, 12.9479, 4.2779, 47.7972, 2.5310] },
-    Mo: { Z: 42, A: 95.95,   cm: [3.7025, 0.2772, 17.2356, 1.0958, 12.8876, 11.0040, 3.7429, 61.6584, 4.3875] },
-    Ag: { Z: 47, A: 107.868, cm: [19.2808, 0.6446, 16.6885, 7.4726, 4.8045, 24.6605, 1.0463, 99.8156, 5.1790] },
-    W:  { Z: 74, A: 183.84,  cm: [29.0818, 1.72029, 15.4300, 9.2259, 14.4327, 0.321703, 5.11982, 57.0560, 9.8875] },
-    Au: { Z: 79, A: 196.967, cm: [16.8819, 0.4611, 18.5913, 8.6216, 25.5582, 1.4826, 5.8600, 36.3956, 12.0658] },
-    Po: { Z: 84, A: 208.98,  cm: [34.6726, 0.700999, 15.4733, 3.55078, 13.1138, 9.55642, 7.02588, 47.0045, 13.6770] }
+    Na: { Z: 11, zv: 1, A: 22.990,  cm: [4.7626, 3.2850, 3.1736, 8.8422, 1.2674, 0.3136, 1.1128, 129.424, 0.6760] },
+    Mg: { Z: 12, zv: 2, A: 24.305,  cm: [5.4204, 2.8275, 2.1735, 79.2611, 1.2269, 0.3808, 2.3073, 7.1937, 0.8584] },
+    Al: { Z: 13, zv: 3, A: 26.982,  cm: [6.4202, 3.0387, 1.9002, 0.7426, 1.5936, 31.5472, 1.9646, 85.0886, 1.1151] },
+    Si: { Z: 14, zv: 4, A: 28.086,  cm: [6.2915, 2.4386, 3.0353, 32.3337, 1.9891, 0.6785, 1.5410, 81.6937, 1.1407] },
+    Fe: { Z: 26, zv: 2, A: 55.845,  cm: [11.7695, 4.7611, 7.3573, 0.3072, 3.5222, 15.3535, 2.3045, 76.8805, 1.0369] },
+    Ni: { Z: 28, zv: 2, A: 58.693,  cm: [12.8376, 3.8785, 7.2920, 0.2565, 4.4438, 12.1763, 2.3800, 66.3421, 1.0341] },
+    Cu: { Z: 29, zv: 1, A: 63.546,  cm: [13.3380, 3.5828, 7.1676, 0.2470, 5.6158, 11.3966, 1.6735, 64.8126, 1.1910] },
+    Ga: { Z: 31, zv: 3, A: 69.723,  cm: [15.2354, 3.0669, 6.7006, 0.2412, 4.3591, 10.7805, 2.9623, 61.4135, 1.7189] },
+    Ge: { Z: 32, zv: 4, A: 72.630,  cm: [16.0816, 2.8509, 6.3747, 0.2516, 3.7068, 11.4468, 3.6830, 54.7625, 2.1313] },
+    As: { Z: 33, zv: 5, A: 74.922,  cm: [16.6723, 2.6345, 6.0701, 0.2647, 3.4313, 12.9479, 4.2779, 47.7972, 2.5310] },
+    Mo: { Z: 42, zv: 1, A: 95.95,   cm: [3.7025, 0.2772, 17.2356, 1.0958, 12.8876, 11.0040, 3.7429, 61.6584, 4.3875] },
+    Ag: { Z: 47, zv: 1, A: 107.868, cm: [19.2808, 0.6446, 16.6885, 7.4726, 4.8045, 24.6605, 1.0463, 99.8156, 5.1790] },
+    W:  { Z: 74, zv: 2, A: 183.84,  cm: [29.0818, 1.72029, 15.4300, 9.2259, 14.4327, 0.321703, 5.11982, 57.0560, 9.8875] },
+    Au: { Z: 79, zv: 1, A: 196.967, cm: [16.8819, 0.4611, 18.5913, 8.6216, 25.5582, 1.4826, 5.8600, 36.3956, 12.0658] },
+    Po: { Z: 84, zv: 6, A: 208.98,  cm: [34.6726, 0.700999, 15.4733, 3.55078, 13.1138, 9.55642, 7.02588, 47.0045, 13.6770] }
   };
 
   /* ---------------------------------------------------------------------------
@@ -144,7 +146,7 @@ const Physics = (() => {
     // α-Po: unico elemento cubico semplice. Θ_D non misurata in modo affidabile.
     Po:   { name: 'Polonio α', group: 'other', species: ['Po'], structure: 'sc', a: 3.359, rTab: 1.68, thetaD: null, Tm: 527, valence: 6 },
     // Mg è esagonale compatto: niente strumenti cubici, sì 1D e pseudopotenziale.
-    Mg:   { name: 'Magnesio (hcp)', group: 'other', species: ['Mg'], structure: 'hcp', a: 3.209, rTab: 1.60, thetaD: 400, Tm: 923, valence: 2, pseudo: 'Mg' }
+    Mg:   { name: 'Magnesio (hcp)', group: 'other', species: ['Mg'], structure: 'hcp', a: 3.209, c: 5.211, rTab: 1.60, thetaD: 400, Tm: 923, valence: 2, pseudo: 'Mg' }
   };
   // Campi derivati: formula, Z e massa medi (usati da Debye-Waller e normalizzazioni),
   // fattore di forma della prima specie (compatibilità), alias rMetal.
@@ -169,10 +171,8 @@ const Physics = (() => {
         return CUBIC.includes(m.structure) || 'reticolo esagonale';
       case 'kp': case 'tb':
         return true;
-      case 'pseudo':
-        return !!m.pseudo || 'raggio di empty core non tabulato';
-      case 'bands3d':
-        return !!m.epm || (m.group === 'fcc' || m.group === 'bcc' ? 'servono bande d (metallo di transizione)' : 'parametri EPM non tabulati');
+      case 'pseudo': case 'bands3d':
+        return true;   // sempre disponibili: dove mancano dati tabulati si usa un modello approssimato (segnalato a schermo)
       default: return true;
     }
   }
@@ -714,44 +714,126 @@ const Physics = (() => {
    *   - V_ps: "empty core" di Ashcroft: 0 per r < r_c, −Z_v e²/r fuori
    *     raggi r_c da N. W. Ashcroft, Phys. Lett. 23, 48 (1966)
    * ========================================================================= */
-  const PSEUDO_ATOMS = {
-    Na: { Z: 11, Zv: 1, rcBohr: 1.66, core: [10.70, 6.85], val: 2.20, label: 'Sodio  [Ne] 3s¹' },
-    Mg: { Z: 12, Zv: 2, rcBohr: 1.39, core: [11.70, 7.85], val: 2.85, label: 'Magnesio  [Ne] 3s²' },
-    Al: { Z: 13, Zv: 3, rcBohr: 1.12, core: [12.70, 8.85], val: 3.50, label: 'Alluminio  [Ne] 3s² 3p¹' }
-  };
+  /*  Raggi di empty core TABULATI (Ashcroft 1966, in a₀). Per tutti gli altri
+   *  materiali si usa l'approssimazione didattica r_c ≈ 0.4·r_atomico
+   *  (verifica: Na 0.4·1.90 = 0.76 Å contro 0.88 Å tabulato; Al 0.57 contro 0.59)
+   *  e lo strumento segnala che la curva è qualitativa. */
+  const EMPTY_CORE_RC = { Na: 1.66, Mg: 1.39, Al: 1.12 };
 
-  function pseudoSystem(key, rMax = 7, n = 5000) {
-    const P = PSEUDO_ATOMS[key];
+  /* ---- Configurazione elettronica e regole di Slater ----------------------
+   *  Il core si riempie in quest'ordine (gas nobili, poi d e f "interni"):
+   *  così per Cu (Z−Z_v = 28) si ottiene [Ar]3d¹⁰, per W (72) [Xe]4f¹⁴5d⁴. */
+  const CORE_ORDER = [[1, 's', 2], [2, 's', 2], [2, 'p', 6], [3, 's', 2], [3, 'p', 6], [3, 'd', 10],
+    [4, 's', 2], [4, 'p', 6], [4, 'd', 10], [5, 's', 2], [5, 'p', 6], [4, 'f', 14], [5, 'd', 10]];
+  const N_STAR = { 1: 1, 2: 2, 3: 3, 4: 3.7, 5: 4.0, 6: 4.2 };   // n efficace degli orbitali di Slater
+  const periodOf = Z => Z <= 2 ? 1 : Z <= 10 ? 2 : Z <= 18 ? 3 : Z <= 36 ? 4 : Z <= 54 ? 5 : 6;
+  const SUP = { 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' };
+  const sup = n => String(n).split('').map(c => SUP[c]).join('');
+
+  /** Carica nucleare efficace (regole di Slater) per un elettrone s del
+   *  gruppo (n s, n p), data la lista di sottogusci occupati [[n, l, occ], …]. */
+  function slaterZeff(Z, shells, n) {
+    let S = 0;
+    for (const [m, l, occ] of shells) {
+      if (m === n && (l === 's' || l === 'p')) S += (n === 1 ? 0.30 : 0.35) * occ;   // stesso gruppo
+      else if (m === n - 1) S += 0.85 * occ;                                       // guscio n−1 (anche d)
+      else if (m < n - 1) S += 1.00 * occ;                                         // gusci più interni
+    }
+    S -= (n === 1 ? 0.30 : 0.35);                                                   // non scherma sé stesso
+    return Z - S;
+  }
+
+  /** Parametri dell'atomo per lo strumento pseudopotenziale, per QUALSIASI
+   *  materiale del database (per i composti si usa il catione, prima specie). */
+  function pseudoAtom(matKey) {
+    const mat = MATERIALS[matKey];
+    const sym = mat.species[0], el = ELEMENTS[sym];
+    const Z = el.Z, Zv = el.zv, nv = periodOf(Z);
+    // core
+    let left = Z - Zv;
+    const shells = [];
+    for (const [n, l, cap] of CORE_ORDER) { if (left <= 0) break; const occ = Math.min(cap, left); shells.push([n, l, occ]); left -= occ; }
+    // valenza: ns² np^(Zv−2) (oppure ns¹)
+    const sOcc = Math.min(2, Zv), pOcc = Zv - sOcc;
+    const all = shells.concat([[nv, 's', sOcc]], pOcc > 0 ? [[nv, 'p', pOcc]] : []);
+    const coreS = [];
+    for (let n = 1; n < nv; n++) coreS.push({ n, Zeff: slaterZeff(Z, all, n) });
+    const val = slaterZeff(Z, all, nv);
+    const tab = EMPTY_CORE_RC[sym] && mat.species.length === 1;
+    const rcBohr = tab ? EMPTY_CORE_RC[sym] : 0.4 * mat.rTab / CONST.BOHR;
+    // stringa della configurazione: gas nobile tra parentesi quadre + resto
+    const noble = { 2: 'He', 10: 'Ne', 18: 'Ar', 36: 'Kr', 54: 'Xe' };
+    let cnt = 0, cut = 0, gas = '';
+    shells.forEach(([, , occ], i) => { cnt += occ; if (noble[cnt]) { gas = `[${noble[cnt]}]`; cut = i + 1; } });
+    const restStr = shells.slice(cut).map(([n, l, occ]) => `${n}${l}${sup(occ)}`).join(' ');
+    const valStr = `${nv}s${sup(sOcc)}${pOcc > 0 ? ` ${nv}p${sup(pOcc)}` : ''}`;
+    return {
+      Z, Zv, sym, rcBohr, nv, nStar: N_STAR[nv], coreS, val, approx: !tab,
+      config: `${gas} ${restStr} ${valStr}`.replace(/\s+/g, ' ').trim(),
+      core: coreS.map(c => +c.Zeff.toFixed(2)),
+      label: `${mat.name}${mat.species.length > 1 ? ` (atomo di ${sym})` : ''}  ${gas} ${restStr} ${valStr}`.replace(/\s+/g, ' ')
+    };
+  }
+  // compatibilità con il vecchio nome
+  const PSEUDO_ATOMS = new Proxy({}, { get: (_, k) => (MATERIALS[k] ? pseudoAtom(k) : undefined) });
+
+  /** Polinomio di Laguerre associato L_m^(1)(x) (parte radiale idrogenoide). */
+  function laguerre1(m, x) {
+    let s = 0, fact = 1;
+    for (let k = 0; k <= m; k++) {
+      if (k > 0) fact *= k;
+      let binom = 1;                                       // C(m+1, m−k)
+      for (let j = 1; j <= m - k; j++) binom = binom * (m + 1 - (m - k) + j) / j;
+      s += (k % 2 ? -1 : 1) * binom * Math.pow(x, k) / fact;
+    }
+    return s;
+  }
+
+  /** Sistema pseudopotenziale per un materiale qualsiasi.
+   *  Core: tutti gli stati ns con n < n_valenza (idrogenoidi con Z_eff di
+   *  Slater, ortonormalizzati con Gram-Schmidt): sono gli unici a cui lo stato
+   *  di valenza s deve essere ortogonale (stati con l diverso lo sono già). */
+  function pseudoSystem(key, rMax = 7) {
+    const P = pseudoAtom(key);
+    const n = Math.round(4000 + 150 * P.Z);                // griglia più fitta per i nuclei pesanti
     const a0 = CONST.BOHR, rc = P.rcBohr * a0, rs = rc / 2;
     const r = new Float64Array(n), dr = rMax / n;
     for (let i = 0; i < n; i++) r[i] = (i + 0.5) * dr;
     const dot = (f, g) => { let s = 0; for (let i = 0; i < n; i++) s += f[i] * g[i] * r[i] * r[i]; return s * dr; };
     const normalize = f => { const nn = Math.sqrt(dot(f, f)); for (let i = 0; i < n; i++) f[i] /= nn; return f; };
 
-    // stati di core (parte radiale R(r))
-    const c1 = normalize(r.map(x => Math.exp(-P.core[0] * x / a0)));
-    const c2raw = r.map(x => { const rho = P.core[1] * x / a0; return (2 - rho) * Math.exp(-rho / 2); });
-    const p12 = dot(c1, c2raw);
-    const c2 = normalize(c2raw.map((v, i) => v - p12 * c1[i]));       // Gram-Schmidt
+    // stati di core ns: R_n0 ∝ e^{−ρ/n} L_{n−1}^(1)(2ρ/n), ρ = Z' r / a₀.
+    // Slater per n ≥ 4 usa il numero quantico efficace n* < n: per dare
+    // all'idrogenoide la stessa estensione dell'orbitale di Slater si usa
+    // Z' = Z_eff·n²/n*² (⟨r⟩ ∝ n²/Z).
+    const cores = [];
+    for (const c of P.coreS) {
+      const Zp = c.Zeff * (c.n * c.n) / (N_STAR[c.n] * N_STAR[c.n]);
+      let f = r.map(x => { const rho = Zp * x / a0; return Math.exp(-rho / c.n) * laguerre1(c.n - 1, 2 * rho / c.n); });
+      for (const q of cores) { const p = dot(q, f); f = f.map((v, i) => v - p * q[i]); }
+      cores.push(normalize(f));
+    }
 
-    // pseudo-funzione liscia
-    const zeta = P.val / (3 * a0);
-    const out = x => x * x * Math.exp(-zeta * x);
-    const dOut = x => (2 * x - zeta * x * x) * Math.exp(-zeta * x);
-    const Bc = dOut(rc) / (2 * rc), Ac = out(rc) - Bc * rc * rc;
-    const phi = normalize(r.map(x => x < rc ? Ac + Bc * x * x : out(x)));
+    // pseudo-funzione liscia: orbitale di Slater r^{n*−1} e^{−ζr} raccordato con A + B r² dentro r_c
+    const ns = P.nStar, zeta = P.val / (ns * a0);
+    const out = x => Math.pow(x, ns - 1) * Math.exp(-zeta * x);
+    const dOut = x => ((ns - 1) / x - zeta) * out(x);
+    // raccordo φ_in = φ(r_c)·exp[β(r² − r_c²)]: stesso valore e stessa derivata in r_c,
+    // positivo ovunque (quindi senza nodi) e con derivata nulla nell'origine
+    const beta = dOut(rc) / (2 * rc * out(rc));
+    const phi = normalize(r.map(x => x < rc ? out(rc) * Math.exp(beta * (x * x - rc * rc)) : out(x)));
 
-    // funzione d'onda "vera": si ortogonalizza ai core l'orbitale di Slater
-    // non raccordato (coincide con φ fuori da r_c). Ortogonalizzare φ stessa
-    // aggiungerebbe un nodo spurio vicino a r = 0 dovuto al raccordo A + B r².
+    // funzione d'onda "vera" (Phillips-Kleinman): l'orbitale di Slater ortogonalizzato ai core
     const sto = normalize(r.map(out));
-    const o1 = dot(c1, sto), o2 = dot(c2, sto);
-    const psi = normalize(sto.map((v, i) => v - o1 * c1[i] - o2 * c2[i]));
+    const overlap = cores.map(c => dot(c, sto));
+    const psi = normalize(sto.map((v, i) => v - cores.reduce((s, c, j) => s + overlap[j] * c[i], 0)));
     if (psi[n - 1] * phi[n - 1] < 0) for (let i = 0; i < n; i++) psi[i] = -psi[i];
 
-    // conteggio dei nodi (cambi di segno) per verifica
+    // nodi: si ignora la regione r < 2a₀/Z_1s, dove la funzione è dominata dalla
+    // cuspide dell'1s e i cambi di segno sono artefatti del modello idrogenoide
+    const rMin = 2 * a0 / (P.coreS.length ? P.coreS[0].Zeff : P.Z);
     let nodesAE = 0, nodesPS = 0;
-    for (let i = 1; i < n; i++) { if (r[i] > 0.02 && psi[i] * psi[i - 1] < 0) nodesAE++; if (phi[i] * phi[i - 1] < 0) nodesPS++; }
+    for (let i = 1; i < n; i++) { if (r[i] > rMin && psi[i] * psi[i - 1] < 0) nodesAE++; if (phi[i] * phi[i - 1] < 0) nodesPS++; }
 
     const Vtrue = x => -CONST.E2 / x * (P.Zv + (P.Z - P.Zv) * Math.exp(-x / rs));
     const Vps = x => x < rc ? 0 : -CONST.E2 * P.Zv / x;
@@ -760,7 +842,7 @@ const Physics = (() => {
       const i = Math.floor(t); if (i >= n - 1) return f[n - 1];
       return f[i] + (t - i) * (f[i + 1] - f[i]);
     };
-    return { P, rc, r, phi, psi, Vtrue, Vps, interp, nodesAE, nodesPS, overlap: [o1, o2] };
+    return { P, rc, r, phi, psi, Vtrue, Vps, interp, nodesAE, nodesPS, nodesExpected: P.nv - 1, rMin, overlap, approx: P.approx };
   }
 
   /* ===========================================================================
@@ -800,27 +882,77 @@ const Physics = (() => {
     Si:   { a: 5.43, expGap: 1.12,  VS: { 3: -0.21, 8: 0.04, 11: 0.08 }, VA: {}, filled: 4 },
     Ge:   { a: 5.66, expGap: 0.66,  VS: { 3: -0.23, 8: 0.01, 11: 0.06 }, VA: {}, filled: 4 },
     GaAs: { a: 5.64, expGap: 1.42,  VS: { 3: -0.23, 8: 0.01, 11: 0.06 }, VA: { 3: 0.07, 4: 0.05, 11: 0.01 }, filled: 4 },
-    Al:   { a: 4.05, local: { 3: 0.0179, 4: 0.0562 }, electrons: 3 }
+    Al:   { a: 4.05, lattice: 'fcc', local: { 3: 0.0179, 4: 0.0562 }, zv: 3 }
   };
+
+  /* ---------------------------------------------------------------------------
+   *  METALLI SENZA PARAMETRI TABULATI — modello semplificato
+   *  Elettrone quasi libero sul reticolo vero del metallo, con il
+   *  pseudopotenziale "empty core" di Ashcroft schermato alla Thomas-Fermi
+   *  (unità atomiche di Rydberg: e² = 2, lunghezze in a₀):
+   *      V(q) = − 8π Z_v cos(q r_c) / [Ω (q² + k_TF²)],   k_TF² = 4k_F/π
+   *  Ω = volume atomico, k_F = (3π² Z_v/Ω)^{1/3}, r_c come nello strumento
+   *  pseudopotenziale (tabulato per Na, Mg, Al; altrimenti 0.4·r_atomico).
+   *  Verifica su Al: V(200) = 0.046 Ry contro 0.056 Ry del fit di Ashcroft.
+   *  LIMITE: descrive solo la banda s(p) quasi libera. Nei metalli di
+   *  transizione (Fe, Ni, W, Mo) e nobili (Cu, Ag, Au) mancano le bande d
+   *  strette, che servirebbero un modello tight-binding spd o APW.
+   *  Mg (esagonale) è approssimato con un CFC dello stesso volume atomico.
+   * ------------------------------------------------------------------------- */
+  function metalModel(matKey) {
+    const mat = MATERIALS[matKey];
+    let lattice = mat.structure, a = mat.a, note = '';
+    if (lattice === 'hcp') {                               // CFC con lo stesso volume atomico
+      const omega = Math.sqrt(3) / 2 * mat.a * mat.a * mat.c / 2;
+      a = Math.cbrt(4 * omega); lattice = 'fcc';
+      note = 'Struttura esagonale approssimata con un CFC dello stesso volume atomico.';
+    }
+    const el = ELEMENTS[mat.species[0]];
+    const zv = el.zv;
+    const abohr = a / CONST.BOHR;
+    const omega = Math.pow(abohr, 3) / ({ fcc: 4, bcc: 2, sc: 1 }[lattice]);
+    const kF = Math.cbrt(3 * Math.PI * Math.PI * zv / omega);
+    const kTF2 = 4 * kF / Math.PI;
+    const rc = (EMPTY_CORE_RC[mat.species[0]] && mat.species.length === 1) ? EMPTY_CORE_RC[mat.species[0]] : 0.4 * mat.rTab / CONST.BOHR;
+    const unit = Math.pow(2 * Math.PI / abohr, 2);
+    const localFn = q2 => {
+      const q = Math.sqrt(q2 * unit);
+      return -8 * Math.PI * zv * Math.cos(q * rc) / (omega * (q * q + kTF2));
+    };
+    const transition = ['Fe', 'Ni', 'Cu', 'Ag', 'Au', 'W', 'Mo'].includes(mat.species[0]);
+    return { a, lattice, localFn, zv, rcBohr: rc, approx: true, transition, note };
+  }
 
   /** Punti ad alta simmetria della zona di Brillouin CFC, in unità di 2π/a. */
-  const BZ_POINTS = {
-    L: [0.5, 0.5, 0.5], G: [0, 0, 0], X: [1, 0, 0], U: [1, 0.25, 0.25], K: [0.75, 0.75, 0]
+  const BZ = {
+    // CFC: L → Γ → X → U|K → Γ (U e K equivalenti: salto senza lunghezza)
+    fcc: { points: { L: [0.5, 0.5, 0.5], G: [0, 0, 0], X: [1, 0, 0], U: [1, 0.25, 0.25], K: [0.75, 0.75, 0] },
+           path: [['L', 'G', 'Λ'], ['G', 'X', 'Δ'], ['X', 'U', ''], ['K', 'G', 'Σ']] },
+    // CCC: Γ → H → N → Γ → P → H
+    bcc: { points: { G: [0, 0, 0], H: [0, 0, 1], N: [0.5, 0.5, 0], P: [0.5, 0.5, 0.5] },
+           path: [['G', 'H', 'Δ'], ['H', 'N', 'G'], ['N', 'G', 'Σ'], ['G', 'P', 'Λ'], ['P', 'H', 'F']] },
+    // SC: Γ → X → M → Γ → R → X
+    sc:  { points: { G: [0, 0, 0], X: [0.5, 0, 0], M: [0.5, 0.5, 0], R: [0.5, 0.5, 0.5] },
+           path: [['G', 'X', 'Δ'], ['X', 'M', 'Z'], ['M', 'G', 'Σ'], ['G', 'R', 'Λ'], ['R', 'X', 'S']] }
   };
-  /** Percorso standard L → Γ → X → U|K → Γ (U e K sono equivalenti: salto senza lunghezza). */
-  const BZ_PATH = [['L', 'G', 'Λ'], ['G', 'X', 'Δ'], ['X', 'U', ''], ['K', 'G', 'Σ']];
+  const BZ_POINTS = BZ.fcc.points, BZ_PATH = BZ.fcc.path;
 
-  /** Vettori del reticolo reciproco della CFC (reticolo CCC: indici tutti pari
-   *  o tutti dispari) con |G|² ≤ g2max, in unità di 2π/a. */
-  function fccGVectors(g2max) {
+  /** Vettori del reticolo reciproco con |G|² ≤ g2max, in unità di 2π/a
+   *  (a = lato della cella CUBICA convenzionale):
+   *   - CFC → reciproco CCC: indici tutti pari o tutti dispari
+   *   - CCC → reciproco CFC: h + k + l pari
+   *   - SC  → reciproco SC : tutti gli interi */
+  function reciprocalGVectors(lattice, g2max) {
     const out = [], m = Math.ceil(Math.sqrt(g2max));
     for (let h = -m; h <= m; h++) for (let k = -m; k <= m; k++) for (let l = -m; l <= m; l++) {
       const par = [h, k, l].map(v => ((v % 2) + 2) % 2);
-      if (!(par[0] === par[1] && par[1] === par[2])) continue;
+      if (lattice === 'fcc' && !(par[0] === par[1] && par[1] === par[2])) continue;
+      if (lattice === 'bcc' && (h + k + l) % 2 !== 0) continue;
       if (h * h + k * k + l * l <= g2max) out.push([h, k, l]);
     }
     return out;
   }
+  const fccGVectors = g2max => reciprocalGVectors('fcc', g2max);
 
   /** Autovalori di una matrice reale simmetrica n×n (array piatto, viene distrutto):
    *  riduzione di Householder a tridiagonale + algoritmo QL implicito
@@ -903,7 +1035,9 @@ const Physics = (() => {
       } else {
         const q = [Gs[i][0] - Gs[j][0], Gs[i][1] - Gs[j][1], Gs[i][2] - Gs[j][2]];
         const q2 = q[0] * q[0] + q[1] * q[1] + q[2] * q[2];
-        if (P.local) {
+        if (P.localFn) {
+          re = P.localFn(q2);                                 // modello semplificato dei metalli
+        } else if (P.local) {
           re = P.local[q2] || 0;                              // un atomo all'origine
         } else {
           const ph = Math.PI / 4 * (q[0] + q[1] + q[2]);      // q·τ con τ = (a/8)(1,1,1)
@@ -926,37 +1060,51 @@ const Physics = (() => {
    *  Restituisce x (ascissa del percorso), etichette dei punti, bande in eV
    *  con zero al massimo della banda di valenza (semiconduttori) o al livello
    *  di Fermi (Al), e l'analisi della gap. */
-  function epmBands(key, { g2max = 19, step = 0.025, nBands = 8 } = {}) {
-    const P = EPM[key];
-    const Gs = fccGVectors(g2max);
+  function epmBands(matKey, { g2max = 19, step = 0.025, nBands } = {}) {
+    // parametri: tabulati (Si, Ge, GaAs, Al) oppure modello semplificato dei metalli
+    const mat = MATERIALS[matKey];
+    const P = mat && mat.epm ? Object.assign({ lattice: 'fcc' }, EPM[mat.epm]) : metalModel(matKey);
+    const metal = !!(P.local || P.localFn);
+    nBands = nBands || (metal ? 6 : 8);
+    // stesso numero di onde piane per ogni reticolo: la densità dei punti G
+    // (in unità di 2π/a) è 1/4 (CFC), 1/2 (CCC), 1 (SC), quindi il raggio di
+    // taglio si scala come densità^(−1/3), cioè |G|²_max come densità^(−2/3)
+    const scale = { fcc: 1, bcc: Math.pow(0.5, 2 / 3), sc: Math.pow(0.25, 2 / 3) }[P.lattice];
+    const Gs = reciprocalGVectors(P.lattice, g2max * scale);
+    const { points: PTS, path: PATH } = BZ[P.lattice];
+    const lab = c => c === 'G' ? 'Γ' : c;
     const xs = [], ks = [], ticks = [], seg = [];
     let x = 0;
-    BZ_PATH.forEach(([A, B, name], si) => {
-      const pa = BZ_POINTS[A], pb = BZ_POINTS[B];
+    PATH.forEach(([A, B, name], si) => {
+      const pa = PTS[A], pb = PTS[B];
       const len = Math.hypot(pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]);
       const nseg = Math.max(2, Math.round(len / step));
-      if (si === 0) ticks.push({ x, label: A === 'G' ? 'Γ' : A });
-      else if (A !== BZ_PATH[si - 1][1]) ticks[ticks.length - 1].label += ',' + A;  // U,K
+      if (si === 0) ticks.push({ x, label: lab(A) });
+      else if (A !== PATH[si - 1][1]) ticks[ticks.length - 1].label += ',' + lab(A);  // es. U,K
       for (let i = (si === 0 ? 0 : 1); i <= nseg; i++) {
         const t = i / nseg;
         ks.push([pa[0] + t * (pb[0] - pa[0]), pa[1] + t * (pb[1] - pa[1]), pa[2] + t * (pb[2] - pa[2])]);
         xs.push(x + t * len); seg.push({ si, t, name, from: A, to: B });
       }
       x += len;
-      ticks.push({ x, label: B === 'G' ? 'Γ' : B });
+      ticks.push({ x, label: lab(B) });
     });
     const E = ks.map(k => epmEigen(P, Gs, k, nBands));
     const bands = Array.from({ length: nBands }, (_, b) => E.map(e => e[b]));
 
     let ref, info;
-    if (P.local) {
-      // Metallo: livello di Fermi dell'elettrone libero con n = Z·4/a³
+    if (metal) {
+      // Metallo: livello di Fermi dell'elettrone libero con n = Z_v/Ω
       // (al primo ordine il potenziale debole non lo sposta: V(G=0) = 0)
-      const n = P.electrons * 4 / Math.pow(P.a, 3);
+      const atomsPerCell = { fcc: 4, bcc: 2, sc: 1 }[P.lattice];
+      const n = P.zv * atomsPerCell / Math.pow(P.a, 3);
       const kF = Math.cbrt(3 * Math.PI * Math.PI * n);
       ref = CONST.HBAR2_2M * kF * kF;
       const crossing = bands.filter(b => Math.min(...b) < ref && Math.max(...b) > ref).length;
-      info = { metal: true, EF: 0, kF, crossing };
+      // primi coefficienti di Fourier del potenziale, per il pannello
+      const shells = [...new Set(Gs.map(g => g[0] * g[0] + g[1] * g[1] + g[2] * g[2]))].filter(q => q > 0).sort((p, q) => p - q).slice(0, 2)
+        .map(q2 => ({ q2, V: P.localFn ? P.localFn(q2) : (P.local[q2] || 0) }));
+      info = { metal: true, EF: 0, kF, crossing, shells, approx: !!P.approx, transition: !!P.transition, note: P.note || '' };
     } else {
       const vb = bands[P.filled - 1], cb = bands[P.filled];
       let iv = 0, ic = 0;
@@ -981,7 +1129,7 @@ const Physics = (() => {
         directGap: dmin, directAt: where(id)
       };
     }
-    return { x: xs, ticks, bands: bands.map(b => b.map(v => v - ref)), info, nG: Gs.length, P };
+    return { x: xs, ticks, seg, bands: bands.map(b => b.map(v => v - ref)), info, nG: Gs.length, P, lattice: P.lattice };
   }
 
   return {
@@ -992,7 +1140,7 @@ const Physics = (() => {
     debyeWallerB, laueNodes, powderPattern,
     kpRHS, kpBands, freeElectronFolded, kpFermi, extendedK,
     harrisonT, tbMono, tbDiatomic, tbBandsVsA, phononMono, phononDiatomic,
-    pseudoSystem, epmBands, symEigenvalues
+    pseudoSystem, pseudoAtom, epmBands, metalModel, symEigenvalues
   };
 })();
 

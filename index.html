@@ -461,7 +461,7 @@
             <option value="27">169 onde piane (|G|² ≤ 27) — convergenza</option>
           </select>
           <label class="check"><input type="checkbox" id="b3-gap" checked> Evidenzia gap, massimo di valenza e minimo di conduzione</label>
-          <p class="hint">Silicio: gap indiretta · GaAs: gap diretta · Alluminio: bande che attraversano il livello di Fermi.</p>
+          <p class="hint">Silicio: gap indiretta · GaAs: gap diretta · Alluminio: bande che attraversano il livello di Fermi. Gli altri metalli usano un modello semplificato (elettrone quasi libero).</p>
         </div>
         <div class="readout" id="b3-readout"></div>
         <details class="info">
@@ -469,8 +469,8 @@
           <div class="info-body">
             <p>Si sviluppano le funzioni di Bloch in onde piane, $\psi_{\mathbf k} = \sum_{\mathbf G} c_{\mathbf G}\, e^{i(\mathbf k+\mathbf G)\cdot\mathbf r}$, e si diagonalizza in ogni punto $\mathbf k$:</p>
             <p>$$H_{\mathbf G\mathbf G'} = \frac{\hbar^2}{2m}|\mathbf k+\mathbf G|^2\,\delta_{\mathbf G\mathbf G'} + V(\mathbf G-\mathbf G')$$</p>
-            <p>Per diamante e blenda, con l'origine al centro del legame ($\boldsymbol\tau = \tfrac a8(1,1,1)$):</p>
-            <p>$$V(\mathbf q) = V_S(q^2)\cos(\mathbf q\cdot\boldsymbol\tau) + i\,V_A(q^2)\sin(\mathbf q\cdot\boldsymbol\tau)$$</p>
+            <p>Per diamante e blenda, con l'origine al centro del legame ($\vec{\tau} = \tfrac a8(1,1,1)$):</p>
+            <p>$$V(\mathbf q) = V_S(q^2)\cos(\mathbf q\cdot\vec{\tau}) + i\,V_A(q^2)\sin(\mathbf q\cdot\vec{\tau})$$</p>
             <p>Bastano tre fattori di forma simmetrici ($q^2 = 3, 8, 11$ in unità $(2\pi/a)^2$), più tre antisimmetrici per GaAs, che misura la differenza tra Ga e As: è il termine $V_A$ che rende la blenda meno simmetrica del diamante. Parametri di Cohen e Bergstresser (1966).</p>
             <p>Per l'alluminio, metallo semplice, bastano due coefficienti $V_{111}$ e $V_{200}$ (Ashcroft, 1963): le bande sono quasi parabole libere con piccoli gap ai bordi di zona, e alcune attraversano $E_F$, quindi è un metallo.</p>
             <p><b>Gap diretta o indiretta</b>: se il massimo della banda di valenza e il minimo di quella di conduzione cadono nello stesso $\mathbf k$ la gap è diretta (GaAs, in $\Gamma$) e un fotone basta per la transizione; se cadono in $\mathbf k$ diversi (Si: massimo in $\Gamma$, minimo all'85% di $\Gamma\to X$) serve anche un fonone. Per questo il silicio emette luce molto male.</p>

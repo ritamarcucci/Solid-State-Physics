@@ -564,11 +564,31 @@ const Visuals = (() => {
       data: { datasets: [] },
       options: {
         responsive: true,
-        interaction: { mode: 'nearest', intersect: false },
+        // 'nearest' sugli assi x e y: il tooltip segue il punto più vicino al
+        // cursore su QUALSIASI curva (con axis 'x' sceglierebbe una curva a caso
+        // tra quelle che passano per la stessa ascissa)
+        interaction: { mode: 'nearest', intersect: false, axis: 'xy' },
         plugins: {
           legend: { display: legend, labels: { boxWidth: 14, boxHeight: 2, usePointStyle: false, filter: it => !it.text.startsWith('_') } },
-          tooltip: { enabled: true, filter: it => !it.dataset.label.startsWith('_'),
-            callbacks: { label: c => `${c.dataset.label}: (${c.parsed.x.toFixed(3)}, ${c.parsed.y.toFixed(3)})` } },
+          // BUG CORRETTO: prima il filtro scartava tutte le curve con etichetta
+          // interna "_" (cioè quasi tutte le bande), quindi il pallino compariva
+          // ma il riquadro con i valori no. Ora si esclude solo ciò che è
+          // marcato esplicitamente con noTip.
+          tooltip: {
+            enabled: true,
+            mode: 'nearest', intersect: false, axis: 'xy',
+            filter: it => !it.dataset.noTip,
+            callbacks: {
+              title: () => '',
+              label: c => {
+                const ds = c.dataset, o = c.chart.options.plugins.tooltip;
+                const name = ds.tip || (ds.label && !ds.label.startsWith('_') ? ds.label : 'curva');
+                const xs = o.formatX ? o.formatX(c.parsed.x) : `x = ${c.parsed.x.toFixed(3)}`;
+                const ys = o.formatY ? o.formatY(c.parsed.y) : `y = ${c.parsed.y.toFixed(3)}`;
+                return `${name} — ${xs}, ${ys}`;
+              }
+            }
+          },
           overlays: {}
         },
         elements: { point: { radius: 0, hoverRadius: 3 }, line: { tension: 0 } },
@@ -581,6 +601,9 @@ const Visuals = (() => {
   function line(data, color, opts = {}) {
     return {
       label: opts.label || '_', data, showLine: true, borderColor: color,
+      // nome mostrato nel tooltip (anche per le curve nascoste in legenda)
+      tip: opts.tip || (opts.label && !opts.label.startsWith('_') ? opts.label : undefined),
+      noTip: !!opts.noTip,
       backgroundColor: opts.fillColor || color, borderWidth: opts.width ?? 2,
       borderDash: opts.dash || [], fill: opts.fill ?? false, yAxisID: opts.yAxisID || 'y',
       pointRadius: 0, order: opts.order ?? 1

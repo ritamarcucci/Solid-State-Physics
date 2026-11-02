@@ -33,6 +33,23 @@ function typeset(el, tries = 0) {
   if (window.MathJax && MathJax.typesetPromise) { MathJax.typesetPromise([el]).catch(() => {}); return; }
   if (tries < 40) setTimeout(() => typeset(el, tries + 1), 250);
 }
+/** Avviso piccolo sotto il titolo di uno strumento (null per toglierlo):
+ *  usato quando un materiale viene trattato con parametri approssimati. */
+function setNotice(toolId, html) {
+  const pane = document.querySelector(`#tool-${toolId} .viz-pane`);
+  let el = pane.querySelector('.notice');
+  if (!html) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'notice';
+    el.setAttribute('role', 'note');
+    el.style.cssText = 'flex:none;padding:7px 12px;border-radius:10px;font-size:13px;line-height:1.4;' +
+      'background:rgba(255,181,71,.10);border:1px solid rgba(255,181,71,.45);color:#ffd08a';
+    pane.querySelector('.viz-head').after(el);
+  }
+  el.innerHTML = html;
+}
+
 /** Ricalcolo al massimo una volta per frame (slider molto rapidi). */
 function rafThrottle(fn) {
   let pending = false;
@@ -416,6 +433,10 @@ Tools.kp = {
     ['kp-mat', 'kp-free', 'kp-ext'].forEach(id => $(id).addEventListener('change', update));
     this.chart = Visuals.makeChart($('kp-chart'), { xTitle: 'k (π/a)', yTitle: 'E (eV)', x: { min: -1, max: 1, ticks: { stepSize: 0.5 } } });
     this.pot = Visuals.makeChart($('kp-pot'), { xTitle: 'x (Å)', yTitle: 'V (eV)', legend: false });
+    this.chart.options.plugins.tooltip.formatX = x => `k = ${x.toFixed(3)} π/a`;
+    this.chart.options.plugins.tooltip.formatY = y => `E = ${y.toFixed(3)} eV`;
+    this.pot.options.plugins.tooltip.formatX = x => `x = ${x.toFixed(2)} Å`;
+    this.pot.options.plugins.tooltip.formatY = y => `V = ${y.toFixed(2)} eV`;
     this.update();
   },
   update() {
@@ -449,7 +470,7 @@ Tools.kp = {
         const right = pos.map(p => ({ x: Physics.extendedK(p.k, i + 1), y: p.E })).sort((p, q) => p.x - q.x);
         const left = right.map(p => ({ x: -p.x, y: p.y })).reverse();
         ds.push(Visuals.line(right, col, { width: 2.4, label: `banda ${i + 1}` }));
-        ds.push(Visuals.line(left, col, { width: 2.4 }));
+        ds.push(Visuals.line(left, col, { width: 2.4, tip: `banda ${i + 1}` }));
       } else {
         const pts = pos.map(p => ({ x: -p.k, y: p.E })).reverse().concat(pos.map(p => ({ x: p.k, y: p.E })));
         ds.push(Visuals.line(pts, col, { width: 2.4, label: `banda ${i + 1}` }));
@@ -565,8 +586,12 @@ Tools.tb = {
       ks.forEach((k, i) => { if (k >= 0) right.push({ x: Physics.extendedK(k, nb), y: E[i] }); });
       right.sort((p, q) => p.x - q.x);
       const left = right.map(p => ({ x: -p.x, y: p.y })).reverse();
-      return [Visuals.line(right, color, opts), Visuals.line(left, color, { ...opts, label: '_' })];
+      return [Visuals.line(right, color, opts), Visuals.line(left, color, { ...opts, label: '_', tip: opts.tip || opts.label })];
     };
+    this.ek.options.plugins.tooltip.formatX = x => `k = ${x.toFixed(3)} π/a`;
+    this.ek.options.plugins.tooltip.formatY = y => ph ? `ν = ${y.toFixed(3)} THz` : `E = ${y.toFixed(3)} eV`;
+    this.va.options.plugins.tooltip.formatX = x => `a = ${x.toFixed(2)} Å`;
+    this.va.options.plugins.tooltip.formatY = y => `E = ${y.toFixed(2)} eV`;
     const setX = () => {
       const wide = ext && di;                  // con una sola banda lo schema esteso coincide col ridotto
       this.ek.options.scales.x.min = wide ? -2 : -1;
@@ -703,7 +728,11 @@ Tools.pseudo = {
     this.setAtom();
   },
   setAtom() {
-    this.sys = Physics.pseudoSystem(M()[$('ps-atom').value].pseudo);
+    const key = $('ps-atom').value;
+    this.sys = Physics.pseudoSystem(key);
+    setNotice('pseudo', this.sys.approx
+      ? `⚠ <b>Curva qualitativa (parametri approssimati)</b>: per ${M()[key].name.toLowerCase()} il raggio di empty core non è tabulato, si usa r<sub>c</sub> ≈ 0.4·r<sub>atomico</sub>.`
+      : null);
     // griglia di visualizzazione simmetrica: ψ(|x|) per mostrare il nucleo al centro
     const n = 801;
     this.xs = Array.from({ length: n }, (_, i) => -5 + 10 * i / (n - 1));
@@ -711,8 +740,14 @@ Tools.pseudo = {
     this.rr = this.xs.map(x => Math.max(Math.abs(x), 0.004));
     this.psiV = this.rr.map(r => s.interp(s.psi, r));
     this.phiV = this.rr.map(r => s.interp(s.phi, r));
-    const amp = Math.max(...this.psiV.map(Math.abs), ...this.phiV.map(Math.abs));
-    this.chart.options.scales.y2.min = -1.1 * amp; this.chart.options.scales.y2.max = 1.1 * amp;
+    // scala della funzione d'onda decisa dalla regione esterna (|r| > 0.15 Å):
+    // negli atomi pesanti le oscillazioni nel core escono dal grafico, ed è
+    // proprio il comportamento "violento" che lo pseudopotenziale elimina
+    let amp = 0;
+    this.xs.forEach((x, i) => { if (Math.abs(x) > 0.15) amp = Math.max(amp, Math.abs(this.psiV[i]), Math.abs(this.phiV[i])); });
+    this.chart.options.scales.y2.min = -1.3 * amp; this.chart.options.scales.y2.max = 1.3 * amp;
+    this.chart.options.plugins.tooltip.formatX = x => `r = ${Math.abs(x).toFixed(3)} Å`;
+    this.chart.options.plugins.tooltip.formatY = y => `${y.toFixed(3)}`;
     // normalizzazione della combinazione (1−t)ψ + tφ: ‖·‖² = (1−t)² + t² + 2t(1−t)⟨ψ|φ⟩
     let ov = 0; for (let i = 0; i < s.r.length; i++) ov += s.psi[i] * s.phi[i] * s.r[i] ** 2;
     this.ovPP = ov * (s.r[1] - s.r[0]);
@@ -756,19 +791,27 @@ Tools.pseudo = {
     };
     this.chart.update('none');
 
-    // nodi della curva attuale (r > 0.02 Å)
-    let nodes = 0;
-    for (let i = this.xs.length >> 1; i < this.xs.length - 1; i++) if (this.rr[i] > 0.02 && W[i] * W[i + 1] < 0) nodes++;
+    // nodi della curva attuale, contati sulla griglia fine del calcolo
+    // (quella del grafico è troppo rada per i nodi interni degli atomi pesanti)
+    let nodes = 0, prev = 0;
+    for (let i = 0; i < s.r.length; i++) {
+      const w = (1 - t) * s.psi[i] + t * s.phi[i];
+      if (s.r[i] > s.rMin && prev * w < 0) nodes++;
+      if (w !== 0) prev = w;
+    }
     const P = s.P;
     $('ps-badge').textContent = t < 0.02 ? 'Potenziale vero · ψ con nodi' : t > 0.98 ? 'Pseudopotenziale · φ senza nodi' : `Trasformazione ${Math.round(t * 100)} %`;
     $('ps-badge').className = 'badge' + (t > 0.98 ? ' good' : t > 0.02 ? ' hot' : '');
     $('ps-readout').innerHTML = `
       <div class="row"><span>Z nucleo / Z valenza</span><b>${P.Z} / ${P.Zv}</b></div>
-      <div class="row"><span>r_c (Ashcroft)</span><b>${P.rcBohr} a₀ = ${fmt(s.rc, 3)} Å</b></div>
-      <div class="row"><span>Z_eff Slater 1s, 2s, 3s</span><span>${P.core.join(', ')}, ${P.val}</span></div>
-      <div class="row"><span>⟨1s|φ⟩, ⟨2s|φ⟩</span><span>${fmt(s.overlap[0], 3)}, ${fmt(s.overlap[1], 3)}</span></div>
+      <div class="row"><span>configurazione</span><span>${P.config}${P.Zv && M()[$('ps-atom').value].species.length > 1 ? ` (${P.sym})` : ''}</span></div>
+      <div class="row"><span>r_c ${P.approx ? '(≈ 0.4·r atomico)' : '(Ashcroft, tabulato)'}</span><b>${fmt(P.rcBohr, 2)} a₀ = ${fmt(s.rc, 3)} Å</b></div>
+      <div class="row"><span>Z_eff Slater core ${P.coreS.map(c => c.n + 's').join(', ')}</span><span>${P.core.join(', ')}</span></div>
+      <div class="row"><span>Z_eff Slater valenza ${P.nv}s</span><span>${fmt(P.val, 2)}</span></div>
+      <div class="row"><span>⟨ns core|φ⟩</span><span>${s.overlap.map(o => fmt(o, 3)).join(', ')}</span></div>
       <hr>
       <div class="row"><span>nodi radiali (curva attuale)</span><b class="${nodes ? 'hl' : 'ok'}">${nodes}</b></div>
+      <div class="row"><span>nodi attesi per lo stato ${P.nv}s</span><span>${s.nodesExpected}</span></div>
       <div class="row"><span>V(r_c) vero</span><span>${fmt(s.Vtrue(s.rc), 1)} eV</span></div>
       <div class="row"><span>ψ vs φ a r = 2 Å</span><span>${fmt(s.interp(s.psi, 2), 3)} / ${fmt(s.interp(s.phi, 2), 3)}</span></div>
       <hr><span>Fuori dal core le due funzioni quasi coincidono: è lì che avvengono legame e conduzione.</span>`;
@@ -795,7 +838,7 @@ Tools.bands3d = {
     this.update();
   },
   update() {
-    const key = M()[$('b3-mat').value].epm, g2 = Number($('b3-basis').value);
+    const key = $('b3-mat').value, g2 = Number($('b3-basis').value);
     const ck = `${key}|${g2}`;
     if (this.cache.has(ck)) { this.res = this.cache.get(ck); this.draw(); return; }
     $('b3-badge').textContent = 'Calcolo in corso…';
@@ -811,6 +854,20 @@ Tools.bands3d = {
       this.draw();
     }));
   },
+  /** Descrive l'ascissa del percorso: "Γ→X, 45%" oppure il punto ad alta simmetria. */
+  describeK(x) {
+    const t = this.res.ticks;
+    for (let i = 0; i + 1 < t.length; i++) {
+      if (x >= t[i].x - 1e-9 && x <= t[i + 1].x + 1e-9) {
+        const f = (x - t[i].x) / ((t[i + 1].x - t[i].x) || 1);
+        if (f < 0.01) return `k = ${t[i].label}`;
+        if (f > 0.99) return `k = ${t[i + 1].label}`;
+        const from = t[i].label.split(',').pop(), to = t[i + 1].label.split(',')[0];
+        return `k: ${from}→${to} ${Math.round(f * 100)}%`;
+      }
+    }
+    return `x = ${x.toFixed(3)}`;
+  },
   draw() {
     const r = this.res, C = Visuals.COLORS, info = r.info, mat = M()[$('b3-mat').value];
     const show = $('b3-gap').checked;
@@ -820,11 +877,15 @@ Tools.bands3d = {
       // valenza in ciano, conduzione in viola (per il metallo: un colore per banda)
       const col = info.metal ? C.series[i % C.series.length] : (i < filled ? C['accent-2'] : C['accent-3']);
       const label = info.metal ? (i === 0 ? 'bande' : '_') : (i === 0 ? 'bande di valenza' : i === filled ? 'bande di conduzione' : '_');
-      return Visuals.line(r.x.map((x, j) => ({ x, y: b[j] })), col, { width: 2, label });
+      const tip = info.metal ? `banda ${i + 1}` : `banda ${i + 1} (${i < filled ? 'valenza' : 'conduzione'})`;
+      return Visuals.line(r.x.map((x, j) => ({ x, y: b[j] })), col, { width: 2, label, tip });
     });
+    // tooltip: posizione lungo il percorso e energia per QUALSIASI banda
+    this.chart.options.plugins.tooltip.formatX = x => this.describeK(x);
+    this.chart.options.plugins.tooltip.formatY = y => `E = ${y.toFixed(3)} eV${info.metal ? ' (da E_F)' : ' (dal VBM)'}`;
     this.chart.options.scales.x.max = xmax;
-    this.chart.options.scales.y.min = info.metal ? -13 : -13;
-    this.chart.options.scales.y.max = info.metal ? 8 : 7;
+    this.chart.options.scales.y.min = info.metal ? -14 : -13;
+    this.chart.options.scales.y.max = info.metal ? 10 : 7;
     const ov = { xTicks: r.ticks.map(t => ({ x: t.x, label: t.label })), hLines: [] };
     if (info.metal) {
       ov.hLines.push({ y: 0, color: C.accent, dash: [6, 4], label: 'E_F' });
@@ -841,17 +902,28 @@ Tools.bands3d = {
     this.chart.options.plugins.overlays = ov;
     this.chart.update('none');
 
-    const badge = $('b3-badge');
+    // avviso: per i metalli il modello è semplificato rispetto ai semiconduttori
     if (info.metal) {
-      badge.textContent = `${mat.name}: metallo · ${info.crossing} bande attraversano E_F`;
+      const base = info.approx
+        ? 'Modello semplificato: elettrone quasi libero sul reticolo vero, con pseudopotenziale empty core schermato (parametri approssimati).'
+        : 'Metallo semplice: pseudopotenziale locale a due coefficienti (Ashcroft), più semplice del modello usato per i semiconduttori.';
+      const d = info.transition ? ' <b>Mancano le bande d</b>, essenziali in questo metallo: la figura mostra solo la banda s(p).' : '';
+      setNotice('bands3d', `⚠ ${base}${d}${info.note ? ' ' + info.note : ''}`);
+    } else setNotice('bands3d', null);
+
+    const badge = $('b3-badge');
+    const latName = { fcc: 'CFC', bcc: 'CCC', sc: 'SC' }[r.lattice];
+    if (info.metal) {
+      badge.textContent = `${mat.name}: metallo · ${info.crossing} band${info.crossing === 1 ? 'a attraversa' : 'e attraversano'} E_F`;
       badge.className = 'badge good';
       $('b3-readout').innerHTML = `
-        <div class="row"><span>elettroni / atomo</span><b>${P.electrons}</b></div>
+        <div class="row"><span>reticolo / percorso</span><b>${latName} · ${r.ticks.map(t => t.label).join('–')}</b></div>
+        <div class="row"><span>elettroni / atomo (Z_v)</span><b>${P.zv}</b></div>
         <div class="row"><span>k_F (elettrone libero)</span><b>${fmt(info.kF, 3)} Å⁻¹</b></div>
         <div class="row"><span>E_F sopra il fondo banda</span><b>${fmt(-Math.min(...r.bands[0]), 2)} eV</b></div>
-        <div class="row"><span>V₁₁₁, V₂₀₀ (Ashcroft)</span><span>${P.local[3]}, ${P.local[4]} Ry</span></div>
+        ${info.shells.map(sh => `<div class="row"><span>V(|G|² = ${+sh.q2.toFixed(2)})</span><span>${fmt(sh.V, 4)} Ry</span></div>`).join('')}
         <hr>
-        <span>Le bande sono quasi parabole libere ripiegate: il potenziale debole apre solo piccoli gap, e diverse bande tagliano il livello di Fermi. Niente gap → metallo.</span>
+        <span>Le bande sono quasi parabole libere ripiegate nella zona di Brillouin: il potenziale debole apre solo piccoli gap e alcune bande tagliano il livello di Fermi. Niente gap → metallo.</span>
         <hr><div class="row"><span>onde piane / tempo</span><span>${r.nG} / ${fmt(r.ms, 0)} ms</span></div>`;
     } else {
       badge.textContent = `${mat.name}: gap ${info.direct ? 'DIRETTA' : 'INDIRETTA'} · ${fmt(info.gap, 2)} eV`;
