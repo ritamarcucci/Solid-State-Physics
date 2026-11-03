@@ -16,15 +16,101 @@ const fmt = (v, d = 3) => Number.isFinite(v) ? v.toFixed(d) : '—';
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
 /** Collega uno slider: map converte il valore grezzo dell'input nella grandezza
- *  fisica, show la formatta nell'<output> accanto, onChange ricalcola. */
-function bindRange(id, map, show, onChange) {
+ *  fisica, show la formatta nell'<output> accanto, onChange ricalcola.
+ *  Accanto a ogni slider viene creato un campo numerico sincronizzato
+ *  (vedi addNumberField). opts.display(raw) → { text, unit } permette di
+ *  mostrare nel campo una grandezza diversa da show (usato per il raggio). */
+function bindRange(id, map, show, onChange, opts = {}) {
   const el = $(id), out = $(id + '-out');
   const read = () => map(Number(el.value));
   const upd = () => { if (out) out.textContent = show(read()); onChange && onChange(); };
   el.addEventListener('input', upd);
   if (out) out.textContent = show(read());
+  addNumberField(el, opts.display || (raw => parseDisplay(show(map(raw)))));
   return read;
 }
+
+/** Estrae numero e unità da una stringa come "1.234 Å", "+0.10 %", "300 K". */
+function parseDisplay(str) {
+  const m = /[-+−]?\d+(?:[.,]\d+)?/.exec(String(str));
+  if (!m) return { text: '', unit: '' };
+  return {
+    text: m[0].replace(',', '.').replace('−', '-').replace(/^\+/, ''),
+    unit: String(str).slice(m.index + m[0].length).trim()
+  };
+}
+
+/* -----------------------------------------------------------------------------
+ *  Campo numerico accanto allo slider
+ *  - range e campo stanno sulla stessa riga (.range-row, flex);
+ *  - il campo mostra la grandezza nelle stesse unità dell'etichetta;
+ *  - digitando un valore (Invio o uscita dal campo) si sceglie la posizione
+ *    dello slider il cui valore è più vicino (funziona anche per scale non
+ *    lineari, come quella logaritmica della dimensione dei domini);
+ *  - ogni modifica dello slider, anche fatta dal codice (animazioni, cambio
+ *    di materiale), aggiorna il campo: per questo si intercetta il setter
+ *    della proprietà value dell'elemento.
+ * --------------------------------------------------------------------------- */
+const VALUE_DESC = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+function addNumberField(range, display) {
+  const row = document.createElement('div');
+  row.className = 'range-row';
+  range.parentNode.insertBefore(row, range);
+  row.appendChild(range);
+
+  const num = document.createElement('input');
+  num.type = 'number';
+  num.className = 'num-input';
+  num.inputMode = 'decimal';
+  num.step = 'any';
+  num.id = range.id + '-num';
+  const label = document.querySelector(`label[for="${range.id}"]`);
+  num.setAttribute('aria-label', (label ? label.textContent.replace(/\s+/g, ' ').trim() : range.id) + ' (valore)');
+  row.appendChild(num);
+  const unit = document.createElement('span');
+  unit.className = 'num-unit';
+  row.appendChild(unit);
+  if (label) label.classList.add('has-num');       // il valore ora sta nel campo: l'<output> si nasconde
+
+  const raw = () => Number(VALUE_DESC.get.call(range));
+  const sync = (force = false) => {
+    if (!force && document.activeElement === num) return;   // non disturbare chi sta scrivendo
+    const d = display(raw());
+    num.value = d.text;
+    unit.textContent = d.unit;
+    // passo delle frecce del campo = una posizione dello slider
+    const dec = (d.text.split('.')[1] || '').length;
+    num.step = dec ? (10 ** -dec).toFixed(dec) : '1';
+  };
+  const commit = () => {
+    let t = num.valueAsNumber;
+    if (!Number.isFinite(t)) t = parseFloat(String(num.value).replace(',', '.'));
+    if (!Number.isFinite(t)) { sync(true); return; }
+    const lo = Number(range.min), hi = Number(range.max), cur = raw();
+    let best = cur, bestErr = Infinity;
+    for (let v = lo; v <= hi; v++) {
+      const e = Math.abs(parseFloat(display(v).text) - t);
+      if (e < bestErr) { bestErr = e; best = v; }
+    }
+    // se la scala è più grossa del valore digitato, almeno un passo nella direzione giusta
+    const curVal = parseFloat(display(cur).text);
+    if (best === cur && Math.abs(t - curVal) > 1e-12) best = Math.min(hi, Math.max(lo, cur + Math.sign(t - curVal)));
+    range.value = best;
+    range.dispatchEvent(new Event('input', { bubbles: true }));
+    sync(true);
+  };
+  num.addEventListener('change', commit);
+  num.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); commit(); num.blur(); } });
+  range.addEventListener('input', () => sync());
+  Object.defineProperty(range, 'value', {
+    configurable: true,
+    get() { return VALUE_DESC.get.call(this); },
+    set(v) { VALUE_DESC.set.call(this, v); sync(); }
+  });
+  range._syncNum = sync;
+  sync(true);
+}
+
 function fillSelect(sel, items) {
   sel.innerHTML = items.map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
 }
@@ -80,25 +166,6 @@ function materialSelect(sel, tool, preferred) {
   });
 }
 
-/** Accordion della teoria gestiti da JavaScript: il click sul titolo apre o
- *  chiude il pannello, che viene portato in vista dentro la colonna dei
- *  controlli; le formule vengono (ri)composte da MathJax all'apertura. */
-function initAccordions() {
-  document.querySelectorAll('details.info').forEach(d => {
-    const sum = d.querySelector('summary');
-    sum.setAttribute('role', 'button');
-    sum.setAttribute('aria-expanded', d.open ? 'true' : 'false');
-    sum.addEventListener('click', e => {
-      e.preventDefault();                       // gestione esplicita, uguale su tutti i browser
-      d.open = !d.open;
-      sum.setAttribute('aria-expanded', d.open ? 'true' : 'false');
-      if (d.open) {
-        typeset(d);
-        requestAnimationFrame(() => d.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
-      }
-    });
-  });
-}
 
 /* =============================================================================
  *  NAVIGAZIONE
@@ -139,6 +206,7 @@ function setVisible(el, visible) {
 function showView(name) {
   setVisible($('view-home'), name === 'home');
   setVisible($('view-work'), name === 'work');
+  Theory.onRoute(name);
   window.scrollTo(0, 0);
 }
 
@@ -185,6 +253,7 @@ function openTool(id) {
   }
   Visuals.setActive(T.views ? T.views() : []);
   if (T.onShow) requestAnimationFrame(() => T.onShow());
+  Theory.onRoute('work');                       // se la teoria è aperta, mostra quella del nuovo strumento
   if (!typesetDone.has(id)) { typesetDone.add(id); typeset($('tool-' + id)); }
 }
 
@@ -202,6 +271,82 @@ function route() {
 }
 
 /* =============================================================================
+ *  TEORIA: pulsante fluttuante + finestra
+ *  Desktop: widget non modale in basso a sinistra (i grafici restano visibili
+ *  e si può continuare a usare i controlli). Mobile (≤ 768 px): bottom sheet
+ *  modale con sfondo scurito. Si chiude con ×, Esc o (su mobile) toccando
+ *  lo sfondo. Se si cambia strumento con la finestra aperta, il testo segue.
+ * ============================================================================= */
+const Theory = {
+  open: false,
+  srcs: new Map(),
+  typeset: new Set(),
+  init() {
+    document.querySelectorAll('#theory-store .theory-src').forEach(el => this.srcs.set(el.dataset.tool, el));
+    $('theory-fab').addEventListener('click', () => (this.open ? this.close() : this.show()));
+    $('theory-close').addEventListener('click', () => this.close());
+    $('theory-backdrop').addEventListener('click', () => this.close());
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && this.open) this.close(); });
+    window.matchMedia('(max-width: 768px)').addEventListener('change', () => this.applyMode());
+  },
+  isSheet() { return window.matchMedia('(max-width: 768px)').matches; },
+  applyMode() {
+    const sheet = this.isSheet();
+    $('theory-panel').setAttribute('aria-modal', sheet ? 'true' : 'false');
+    $('theory-backdrop').classList.toggle('hidden', !(this.open && sheet));
+    document.body.classList.toggle('sheet-open', this.open && sheet);
+  },
+  /** Mette nella finestra il testo dello strumento attivo. */
+  fill() {
+    const id = state.tool, src = this.srcs.get(id);
+    const meta = Object.values(MODULES).flatMap(m => m.tools).find(t => t.id === id);
+    $('theory-title').textContent = meta ? meta.label : 'Teoria';
+    const body = $('theory-body');
+    body.replaceChildren(src || document.createTextNode('Nessun testo per questo strumento.'));
+    body.scrollTop = 0;
+    if (src && !this.typeset.has(id)) { this.typeset.add(id); typeset(body); }
+  },
+  show() {
+    if (!state.tool) return;
+    this.open = true;
+    this.fill();
+    $('theory-panel').classList.remove('hidden');
+    $('theory-fab').setAttribute('aria-expanded', 'true');
+    $('theory-fab').classList.add('active');
+    this.applyMode();
+    $('theory-close').focus({ preventScroll: true });
+  },
+  close() {
+    this.open = false;
+    $('theory-panel').classList.add('hidden');
+    $('theory-fab').setAttribute('aria-expanded', 'false');
+    $('theory-fab').classList.remove('active');
+    this.applyMode();
+  },
+  /** Chiamata a ogni cambio di vista o di strumento. */
+  onRoute(view) {
+    $('theory-fab').classList.toggle('hidden', view !== 'work');
+    if (view !== 'work') this.close();
+    else if (this.open) this.fill();
+  }
+};
+
+/** Il testo intero dei badge è sempre leggibile passando il mouse (title),
+ *  anche quando sul desktop viene accorciato con i puntini di sospensione. */
+function initBadges() {
+  const mo = new MutationObserver(list => {
+    for (const r of list) {
+      const b = r.target.nodeType === 1 ? r.target.closest('.badge') : r.target.parentElement?.closest('.badge');
+      if (b) b.title = b.textContent;
+    }
+  });
+  document.querySelectorAll('.viz-head .badge').forEach(b => {
+    b.title = b.textContent;
+    mo.observe(b, { childList: true, characterData: true, subtree: true });
+  });
+}
+
+/* =============================================================================
  *  STRUMENTI
  * ============================================================================= */
 const Tools = {};
@@ -216,7 +361,10 @@ Tools.lattice = {
     this.structure = null;
 
     const update = rafThrottle(() => this.update());
-    this.readR = bindRange('lat-r', v => v / 1000, () => '', update);
+    // campo numerico del raggio in Å (lo slider va da 0 al raggio di contatto)
+    const rTouch = () => Physics.STRUCTURES[$('lat-struct').value].touch * M()[$('lat-mat').value].a;
+    this.readR = bindRange('lat-r', v => v / 1000, () => '', update,
+      { display: raw => ({ text: (raw / 1000 * rTouch()).toFixed(3), unit: 'Å' }) });
     $('lat-mat').addEventListener('change', () => { $('lat-struct').value = M()[$('lat-mat').value].structure; this.rebuild(); });
     $('lat-struct').addEventListener('change', () => this.rebuild());
     $('lat-clip').addEventListener('change', update);
@@ -262,6 +410,7 @@ Tools.lattice = {
     const P = Physics.packing(s, a, r);
     this.view.setRadius(r / a, locked, $('lat-clip').checked);
     $('lat-r-out').textContent = `${fmt(r, 3)} Å`;
+    $('lat-r')._syncNum();          // il raggio in Å dipende anche da materiale e reticolo
 
     const badge = $('lat-badge');
     badge.textContent = locked ? `Contatto · APF = ${fmt(P.apfIdeal, 3)} · ${S.dirs}` : `${S.label}`;
@@ -345,7 +494,7 @@ Tools.ewald = {
       <div class="row"><span>nodi estinti (|h|,|k|,|l| ≤ 3)</span><span>${ext} / ${nodes.length}</span></div>
       <hr>
       ${top.length ? '<div class="row"><span>hkl</span><span>λ (Å)</span><span>2θ</span></div>' +
-        top.map(n => `<div class="row"><b>(${n.h} ${n.k} ${n.l})</b><span>${fmt(n.lambda, 3)}</span><span>${fmt(n.twoTheta, 1)}°</span></div>`).join('')
+        top.map(n => `<div class="row"><b>(${[n.h, n.k, n.l].map(v => Math.round(v).toFixed(0)).join(' ')})</b><span>${fmt(n.lambda, 3)}</span><span>${fmt(n.twoTheta, 1)}°</span></div>`).join('')
         : '<span>Nessun nodo tra le due sfere: ruota il cristallo o allarga lo spettro.</span>'}`;
   }
 };
@@ -973,6 +1122,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   Visuals.loadColors();
   Visuals.initCharts();
-  initAccordions();
+  Theory.init();
+  initBadges();
   route();
 });

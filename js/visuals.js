@@ -41,6 +41,44 @@ const Visuals = (() => {
   }
 
   /* --------------------------------------------------------------------------
+   *  Convivenza tra scorrimento della pagina e scene 3D sui dispositivi touch
+   *
+   *  Problema: OrbitControls (r128) e il trascinamento del pannello A
+   *  catturano il tocco con un dito e chiamano preventDefault, quindi su
+   *  telefono la pagina non scorre più quando il dito parte da un canvas.
+   *  Soluzione (come le mappe online):
+   *   - UN dito: l'evento touch viene fermato in fase di cattura sul
+   *     contenitore, prima che arrivi ai gestori del canvas, e il browser
+   *     scorre la pagina (touch-action: pan-y);
+   *   - DUE dita: l'evento passa e ruota/zooma il modello.
+   *  Al primo tocco con un dito compare l'avviso "Usa due dita per ruotare".
+   *  Su desktop (mouse) non cambia nulla.
+   * ------------------------------------------------------------------------ */
+  const isTouchDevice = () => window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  function touchScrollGuard(host, canvas) {
+    if (isTouchDevice()) canvas.style.touchAction = 'pan-y';     // lo stile inline vince su OrbitControls
+    let hint = null, timer = 0;
+    const showHint = () => {
+      if (!hint) {
+        hint = document.createElement('div');
+        hint.className = 'touch-hint';
+        hint.textContent = 'Usa due dita per ruotare il modello';
+        host.appendChild(hint);
+      }
+      hint.classList.add('show');
+      clearTimeout(timer);
+      timer = setTimeout(() => hint.classList.remove('show'), 1600);
+    };
+    host.addEventListener('touchstart', e => {
+      if (e.touches.length < 2) { e.stopPropagation(); showHint(); }
+      else if (hint) hint.classList.remove('show');
+    }, { capture: true, passive: true });
+    host.addEventListener('touchmove', e => {
+      if (e.touches.length < 2) e.stopPropagation();
+    }, { capture: true, passive: true });
+  }
+
+  /* --------------------------------------------------------------------------
    *  Base per le viste Three.js
    * ------------------------------------------------------------------------ */
   class ThreeView {
@@ -59,9 +97,15 @@ const Visuals = (() => {
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.08;
         this.controls.target.set(...target);
+        // touch: con DUE dita si ruota e si fa zoom; un dito resta alla pagina
+        // (vedi touchScrollGuard). DOLLY_ROTATE esiste da Three r111.
+        if (THREE.TOUCH && THREE.TOUCH.DOLLY_ROTATE !== undefined) {
+          this.controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE };
+        }
       } else {
         this.camera.lookAt(new THREE.Vector3(...target));
       }
+      touchScrollGuard(host, this.renderer.domElement);
       // illuminazione: ambiente + due direzionali (chiave e controluce)
       this.scene.add(new THREE.AmbientLight(0xffffff, 0.5));
       const key = new THREE.DirectionalLight(0xffffff, 0.85); key.position.set(5, 8, 6); this.scene.add(key);
@@ -238,19 +282,39 @@ const Visuals = (() => {
     /** Trascinamento: dx ruota attorno all'asse verticale, dy attorno all'asse
      *  orizzontale dello schermo — rotazioni nel riferimento del laboratorio. */
     _bindDrag(el) {
-      let last = null;
-      el.addEventListener('pointerdown', e => { last = [e.clientX, e.clientY]; el.setPointerCapture(e.pointerId); });
-      el.addEventListener('pointermove', e => {
-        if (!last) return;
-        const dx = e.clientX - last[0], dy = e.clientY - last[1];
-        last = [e.clientX, e.clientY];
+      const rotateBy = (dx, dy) => {
         const qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), dx * 0.008);
         const qx = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0).applyQuaternion(this.A.camera.quaternion), dy * 0.008);
         this.q.premultiply(qy).premultiply(qx);
         this._applyRotation();
+      };
+      // mouse e penna: trascinamento classico
+      let last = null;
+      el.addEventListener('pointerdown', e => {
+        if (e.pointerType === 'touch') return;          // il touch è gestito sotto (due dita)
+        last = [e.clientX, e.clientY]; el.setPointerCapture(e.pointerId);
+      });
+      el.addEventListener('pointermove', e => {
+        if (!last || e.pointerType === 'touch') return;
+        rotateBy(e.clientX - last[0], e.clientY - last[1]);
+        last = [e.clientX, e.clientY];
       });
       const end = () => { last = null; };
       el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+
+      // touch: si ruota con DUE dita (si segue il loro punto medio); un dito
+      // solo non arriva qui (touchScrollGuard) e fa scorrere la pagina
+      const mid = t => [(t[0].clientX + t[1].clientX) / 2, (t[0].clientY + t[1].clientY) / 2];
+      let lastMid = null;
+      el.addEventListener('touchstart', e => { if (e.touches.length === 2) lastMid = mid(e.touches); }, { passive: true });
+      el.addEventListener('touchmove', e => {
+        if (e.touches.length !== 2 || !lastMid) return;
+        e.preventDefault();                               // niente scroll mentre si ruota con due dita
+        const m = mid(e.touches);
+        rotateBy(m[0] - lastMid[0], m[1] - lastMid[1]);
+        lastMid = m;
+      }, { passive: false });
+      el.addEventListener('touchend', e => { if (e.touches.length < 2) lastMid = null; }, { passive: true });
     }
 
     /** Orienta il cristallo con la direzione cristallografica dir ∥ fascio (x). */
@@ -372,7 +436,7 @@ const Visuals = (() => {
         m.scale.setScalar(n.lit ? 0.26 : 0.13);
         if (n.lit && nl < this.maxLines) {
           // segmento dal centro della sfera della λ che accende il nodo, al nodo
-          pos.set([-n.k, 0, 0, n.G[0], n.G[1], n.G[2]], nl * 6); nl++;
+          pos.set([-n.kmag, 0, 0, n.G[0], n.G[1], n.G[2]], nl * 6); nl++;
         }
       }
       this.koutLines.geometry.setDrawRange(0, nl * 2);
@@ -435,8 +499,9 @@ const Visuals = (() => {
         ctx.font = '10px "JetBrains Mono", ui-monospace, monospace';
         ctx.textBaseline = 'alphabetic';
         for (const { node, px, py } of spots) {
-          const idx = [node.h, node.k, node.l];
-          if (idx.every(Number.isInteger)) drawMiller(ctx, idx, px + 8, py - 6);
+          // indici di Miller interi (arrotondati per sicurezza: mai decimali a schermo)
+          const idx = [node.h, node.k, node.l].map(v => Math.round(v));
+          if (idx.every(Number.isFinite)) drawMiller(ctx, idx, px + 8, py - 6);
           else if (Number.isFinite(node.twoTheta)) {
             ctx.fillStyle = 'rgba(230,235,245,.8)';
             ctx.fillText(`${node.twoTheta.toFixed(1)}°`, px + 8, py - 6);

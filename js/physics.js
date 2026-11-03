@@ -382,7 +382,9 @@ const Physics = (() => {
             node.lit = true;
             node.lambda = lam;
             node.kout = kout;
-            node.k = kk;
+            // ATTENZIONE: non usare node.k, che è l'indice di Miller k!
+            // (in passato veniva sovrascritto da |k| = 2π/λ ≈ 15.96 Å⁻¹)
+            node.kmag = kk;
             node.twoTheta = Math.acos(Math.min(1, (kout[0] * u[0] + kout[1] * u[1] + kout[2] * u[2]) / kk)) * CONST.DEG;
             node.I = F.abs2;                                      // |F|² (senza Lorentz-polarizzazione)
           }

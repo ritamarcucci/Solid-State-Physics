@@ -246,12 +246,21 @@ code { font-family: var(--font-mono); font-size: .92em; }
   min-width: 0; min-height: 0; height: 100%; overflow: hidden;
   padding: 18px 18px 18px 22px;
 }
-.viz-head { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex: none; flex-wrap: wrap; }
-.viz-head h3 { font-size: 20px; }
+/* Titolo e badge su UNA riga, sempre (desktop): con flex-wrap il badge, il cui
+   testo cambia a ogni fotogramma durante la rotazione continua, saltava
+   avanti e indietro tra "accanto" e "sotto" il titolo. Ora la riga non va
+   mai a capo: se manca spazio il badge si accorcia con i puntini (il testo
+   intero resta nel tooltip) e le cifre hanno larghezza fissa. */
+.viz-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex: none; flex-wrap: nowrap; min-height: 30px; min-width: 0;
+}
+.viz-head h3 { font-size: 20px; flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .badge {
   flex: 0 1 auto;
-  max-width: 100%;
-  white-space: normal; overflow-wrap: anywhere; line-height: 1.35;
+  min-width: 0; max-width: 60%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.35;
+  font-variant-numeric: tabular-nums;
   padding: 5px 10px; border-radius: 14px;
   font: 600 12px var(--font-mono);
   border: 1px solid var(--line-2); color: var(--muted);
@@ -273,6 +282,16 @@ code { font-family: var(--font-mono); font-size: .92em; }
 }
 .stage > .three-host { position: absolute; inset: 0; }
 .three-host canvas { display: block; width: 100% !important; height: 100% !important; cursor: grab; touch-action: none; }
+/* Touch: un dito scorre la pagina (pan-y), due dita ruotano/zoomano (visuals.js) */
+@media (pointer: coarse) { .three-host canvas { touch-action: pan-y; } }
+.touch-hint {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  padding: 8px 14px; border-radius: 99px; pointer-events: none;
+  background: rgba(11, 16, 32, .85); border: 1px solid var(--line-2);
+  color: var(--text); font-size: 13px; white-space: nowrap;
+  opacity: 0; transition: opacity .25s;
+}
+.touch-hint.show { opacity: 1; }
 .three-host canvas:active { cursor: grabbing; }
 .chart-host { padding: 10px; }
 /* Il canvas è posizionato in assoluto: così Chart.js misura il contenitore
@@ -422,21 +441,78 @@ input[type=range]:active::-webkit-slider-thumb { transform: scale(1.2); }
 .meter > span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent-2), var(--accent)); transition: width .15s; }
 
 /* accordion "Info" con la teoria */
-.info { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-.info summary {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 12px 14px; cursor: pointer; list-style: none;
-  position: relative; z-index: 1; pointer-events: auto; user-select: none;
-  font-size: 14px; font-weight: 600;
+/* =============================================================================
+ *  TEORIA: pulsante fluttuante (FAB) + finestra
+ * ============================================================================= */
+.theory-fab {
+  position: fixed; right: 20px; bottom: 20px; z-index: 60;
+  display: flex; align-items: center; gap: 8px;
+  height: 48px; padding: 0 18px 0 14px; border-radius: 99px; cursor: pointer;
+  background: var(--accent); color: #1a1205; border: 0;
+  font-weight: 700; font-size: 14px;
+  box-shadow: 0 12px 30px -8px rgba(0, 0, 0, .7), 0 0 0 1px rgba(0, 0, 0, .2);
+  transition: transform .2s var(--ease), background .2s;
 }
-.info summary::-webkit-details-marker { display: none; }
-.info summary::after { content: "+"; font: 600 18px var(--font-mono); color: var(--accent-2); transition: transform .3s var(--ease); }
-.info[open] summary::after { transform: rotate(45deg); }
-.info summary:hover { background: var(--panel-2); }
-.info-body { display: flex; flex-direction: column; gap: 8px; padding: 0 14px 14px; font-size: 13.5px; color: var(--muted); animation: infoIn .3s var(--ease); }
+.theory-fab:hover { transform: translateY(-2px); background: #ffc66e; }
+.theory-fab.active { background: var(--accent-2); }
+.theory-fab .fab-icon { font-size: 20px; line-height: 1; }
+
+/* Desktop: widget ancorato in basso a sinistra, NON modale e senza
+   oscurare la pagina: si legge mentre si usano i controlli. */
+.theory-panel {
+  position: fixed; left: 16px; bottom: 16px; z-index: 55;
+  width: min(440px, calc(100vw - 32px));
+  /* altezza limitata in modo che le voci della sidebar (fino a 4 strumenti)
+     restino visibili e cliccabili sopra la finestra */
+  max-height: clamp(300px, calc(100vh - 470px), 620px);
+  display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid var(--line-2); border-radius: 16px;
+  box-shadow: 0 24px 60px -18px rgba(0, 0, 0, .85);
+  animation: panelIn .3s var(--ease) both;
+}
+@keyframes panelIn { from { opacity: 0; transform: translateY(14px); } }
+.theory-head {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+  padding: 14px 14px 10px 18px; border-bottom: 1px solid var(--line);
+  flex: none;
+}
+.theory-head .eyebrow { margin-bottom: 6px; }
+.theory-head h3 { font-size: 17px; }
+.theory-close {
+  flex: none; width: 34px; height: 34px; border-radius: 10px; cursor: pointer;
+  background: var(--panel-2); border: 1px solid var(--line-2); color: var(--text);
+  font-size: 22px; line-height: 1; display: grid; place-items: center;
+}
+.theory-close:hover { border-color: var(--accent-2); }
+.theory-body { overflow-y: auto; overscroll-behavior: contain; padding: 4px 18px 18px; }
+.theory-sec h4 { margin: 14px 0 8px; font-size: 14px; color: var(--accent-2); }
+.theory-sec + .theory-sec { border-top: 1px solid var(--line); margin-top: 10px; }
+.info-body { display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; color: var(--muted); }
+.info-body p { margin: 0; }
 .info-body ul { margin: 0; padding-left: 18px; }
 .info-body b { color: var(--text); }
-@keyframes infoIn { from { opacity: 0; transform: translateY(-4px); } }
+.theory-backdrop { position: fixed; inset: 0; z-index: 54; background: rgba(5, 7, 15, .55); }
+/* il FAB non deve coprire gli ultimi controlli: spazio in fondo alla colonna */
+.ctrl-pane { padding-bottom: 88px !important; }
+
+/* =============================================================================
+ *  SLIDER + CAMPO NUMERICO sulla stessa riga
+ * ============================================================================= */
+.range-row { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+.range-row input[type=range] { flex: 1 1 auto; min-width: 0; margin: 0; }
+.num-input {
+  flex: 0 0 76px; width: 76px; min-width: 0;
+  padding: 4px 6px; border-radius: 7px;
+  background: var(--panel-2); border: 1px solid var(--line-2); color: var(--accent);
+  font: 600 12.5px var(--font-mono); text-align: right;
+  -moz-appearance: textfield;
+}
+.num-input::-webkit-inner-spin-button, .num-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.num-input:focus { outline: 2px solid var(--accent-2); outline-offset: 1px; border-color: transparent; }
+.num-unit { flex: 0 0 auto; min-width: 2.4ch; font: 12px var(--font-mono); color: var(--muted); white-space: nowrap; }
+.num-unit:empty { display: none; }
+/* il valore ora è nel campo: l'<output> dell'etichetta sarebbe un doppione */
+.ctrl-group label.has-num output { display: none; }
 
 /* MathJax nel tema scuro */
 mjx-container { color: var(--text); }
@@ -449,7 +525,10 @@ mjx-container[display="true"] { margin: .4em 0 !important; overflow-x: auto; ove
  * ============================================================================= */
 @media (max-width: 1150px) {
   :root { --sidebar-w: 230px; }
-  .chart-row { grid-template-columns: 1fr; }
+  /* due grafici impilati: servono DUE righe esplicite, altrimenti la seconda
+     riga implicita ha altezza "auto" e il canvas (in posizione assoluta) sparisce */
+  .chart-row { grid-template-columns: 1fr; grid-template-rows: repeat(2, minmax(0, 1fr)); }
+  .chart-row.single { grid-template-rows: minmax(0, 1fr); }
 }
 /* Tablet e telefono: sidebar in alto, controlli sotto la grafica */
 @media (max-width: 880px) {
@@ -465,14 +544,33 @@ mjx-container[display="true"] { margin: .4em 0 !important; overflow-x: auto; ove
   .viz-pane { height: 72vh; padding: 14px 16px; }
   .ewald-grid { grid-template-columns: 1fr; grid-template-rows: repeat(3, minmax(240px, 1fr)) auto; }
   #tool-ewald .viz-pane { height: auto; }
+  /* Tight binding: i due grafici hanno ciascuno un'altezza propria e si impilano */
+  #tool-tb .viz-pane { height: auto; }
+  #tool-tb .chart-row { flex: none; grid-template-rows: repeat(2, 300px); }
+  #tool-tb .chart-row.single { grid-template-rows: 340px; }
   .ctrl-pane { height: auto; overflow: visible; padding: 16px; border-left: 0; border-top: 1px solid var(--line); }
 }
 /* Schermi piccoli: il badge va sotto il titolo e occupa tutta la larghezza */
 @media (max-width: 768px) {
-  .viz-head { flex-direction: column; align-items: flex-start; }
-  .viz-head h3 { font-size: 18px; }
-  .badge { align-self: stretch; text-align: left; }
+  .viz-head { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .viz-head h3 { font-size: 18px; white-space: normal; }
+  /* su telefono il badge va sotto il titolo e il testo va a capo (mai tagliato) */
+  .badge { align-self: stretch; text-align: left; max-width: 100%; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
   .chart-host.grow { min-height: 320px; }
+  /* teoria: bottom sheet modale */
+  .theory-panel {
+    left: 0; right: 0; bottom: 0; width: 100%;
+    max-height: 82vh; border-radius: 18px 18px 0 0;
+    border-left: 0; border-right: 0; border-bottom: 0;
+    animation-name: sheetIn;
+  }
+  @keyframes sheetIn { from { transform: translateY(100%); } }
+  .theory-fab { right: 12px; bottom: 12px; width: 46px; height: 46px; padding: 0; justify-content: center; opacity: .95; }
+  .theory-fab .fab-icon { font-size: 18px; }
+  .theory-fab .fab-text { display: none; }
+  body.sheet-open { overflow: hidden; }
+  body.sheet-open .theory-fab { display: none; }     /* la scheda ha già la sua X */
+  .num-input { flex-basis: 70px; width: 70px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
