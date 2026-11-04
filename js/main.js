@@ -185,7 +185,7 @@ const MODULES = {
       { id: 'kp', label: 'Top-down', desc: 'Quasi libero e Kronig-Penney' },
       { id: 'tb', label: 'Bottom-up', desc: 'Tight binding 1D' },
       { id: 'pseudo', label: 'Il trucco del nucleo', desc: 'Pseudopotenziale' },
-      { id: 'bands3d', label: 'Bande reali 3D', desc: 'Si, Ge, GaAs, Al lungo L–Γ–X' }
+      { id: 'bands3d', label: 'Bande reali 3D', desc: 'Si, Ge, GaAs, Al, Be, Bi, grafene: L, Γ, X, W, K' }
     ]
   }
 };
@@ -272,8 +272,9 @@ function route() {
 
 /* =============================================================================
  *  TEORIA: pulsante fluttuante + finestra
- *  Desktop: widget non modale in basso a sinistra (i grafici restano visibili
- *  e si può continuare a usare i controlli). Mobile (≤ 768 px): bottom sheet
+ *  Desktop: widget non modale grande, in basso a destra sopra il pulsante,
+ *  trascinabile dalla testata (i grafici restano visibili e si possono usare
+ *  i controlli). Mobile (≤ 768 px): bottom sheet
  *  modale con sfondo scurito. Si chiude con ×, Esc o (su mobile) toccando
  *  lo sfondo. Se si cambia strumento con la finestra aperta, il testo segue.
  * ============================================================================= */
@@ -288,11 +289,95 @@ const Theory = {
     $('theory-backdrop').addEventListener('click', () => this.close());
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && this.open) this.close(); });
     window.matchMedia('(max-width: 768px)').addEventListener('change', () => this.applyMode());
+    window.addEventListener('resize', () => this.clamp());
+    this.initDrag();
+    this.initResize();
+  },
+  /** Desktop: la finestra si trascina dalla testata e resta dentro lo schermo. */
+  initDrag() {
+    const panel = $('theory-panel'), head = panel.querySelector('.theory-head');
+    let dx = 0, dy = 0;
+    head.addEventListener('pointerdown', e => {
+      if (this.isSheet() || e.button !== 0 || e.target.closest('.theory-close')) return;
+      const r = panel.getBoundingClientRect();
+      dx = e.clientX - r.left; dy = e.clientY - r.top;
+      // passa da right/bottom a left/top mantenendo la posizione attuale
+      panel.style.left = r.left + 'px'; panel.style.top = r.top + 'px';
+      panel.style.right = 'auto'; panel.style.bottom = 'auto';
+      panel.classList.add('dragging');
+      head.setPointerCapture(e.pointerId);
+    });
+    head.addEventListener('pointermove', e => {
+      if (!panel.classList.contains('dragging')) return;
+      this.place(e.clientX - dx, e.clientY - dy);
+    });
+    const end = e => {
+      if (!panel.classList.contains('dragging')) return;
+      panel.classList.remove('dragging');
+      if (head.hasPointerCapture(e.pointerId)) head.releasePointerCapture(e.pointerId);
+    };
+    head.addEventListener('pointerup', end);
+    head.addEventListener('pointercancel', end);
+  },
+  /** Desktop: la finestra si ridimensiona da bordi e angoli (8 maniglie). */
+  initResize() {
+    const panel = $('theory-panel'), MINW = 320, MINH = 220;
+    for (const d of ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']) {
+      const grip = document.createElement('div');
+      grip.className = 'theory-resize tr-' + d;
+      grip.setAttribute('aria-hidden', 'true');
+      panel.appendChild(grip);
+      grip.addEventListener('pointerdown', e => {
+        if (this.isSheet() || e.button !== 0) return;
+        e.preventDefault();
+        const r = panel.getBoundingClientRect(), s = { x: e.clientX, y: e.clientY, l: r.left, t: r.top, w: r.width, h: r.height };
+        // da right/bottom/max-height a left/top/width/height espliciti
+        Object.assign(panel.style, { left: s.l + 'px', top: s.t + 'px', right: 'auto', bottom: 'auto',
+          width: s.w + 'px', height: s.h + 'px', maxHeight: 'none' });
+        panel.classList.add('dragging');
+        grip.setPointerCapture(e.pointerId);
+        const move = ev => {
+          const dx = ev.clientX - s.x, dy = ev.clientY - s.y;
+          let l = s.l, t = s.t, w = s.w, h = s.h;
+          if (d.includes('e')) w = Math.min(Math.max(MINW, s.w + dx), innerWidth - s.l);
+          if (d.includes('s')) h = Math.min(Math.max(MINH, s.h + dy), innerHeight - s.t);
+          if (d.includes('w')) { l = Math.min(Math.max(0, s.l + dx), s.l + s.w - MINW); w = s.w + (s.l - l); }
+          if (d.includes('n')) { t = Math.min(Math.max(0, s.t + dy), s.t + s.h - MINH); h = s.h + (s.t - t); }
+          Object.assign(panel.style, { left: l + 'px', top: t + 'px', width: w + 'px', height: h + 'px' });
+        };
+        const end = ev => {
+          panel.classList.remove('dragging');
+          grip.removeEventListener('pointermove', move);
+          grip.removeEventListener('pointerup', end);
+          grip.removeEventListener('pointercancel', end);
+          if (grip.hasPointerCapture(ev.pointerId)) grip.releasePointerCapture(ev.pointerId);
+        };
+        grip.addEventListener('pointermove', move);
+        grip.addEventListener('pointerup', end);
+        grip.addEventListener('pointercancel', end);
+      });
+    }
+  },
+  /** Posiziona la finestra con l'angolo in alto a sinistra in (x, y), dentro lo schermo. */
+  place(x, y) {
+    const p = $('theory-panel'), w = p.offsetWidth, h = p.offsetHeight;
+    p.style.left = Math.min(Math.max(0, x), Math.max(0, innerWidth - w)) + 'px';
+    p.style.top = Math.min(Math.max(0, y), Math.max(0, innerHeight - h)) + 'px';
+  },
+  resetInline() { const p = $('theory-panel'); for (const k of ['left', 'top', 'right', 'bottom', 'width', 'height', 'maxHeight']) p.style[k] = ''; },
+  /** Dopo un ridimensionamento della finestra del browser, riporta il pannello dentro lo schermo. */
+  clamp() {
+    const p = $('theory-panel');
+    if (this.isSheet()) { this.resetInline(); return; }
+    if (p.style.width) p.style.width = Math.min(p.offsetWidth, innerWidth) + 'px';
+    if (p.style.height) p.style.height = Math.min(p.offsetHeight, innerHeight) + 'px';
+    if (p.style.left && p.style.left !== 'auto') this.place(parseFloat(p.style.left), parseFloat(p.style.top));
   },
   isSheet() { return window.matchMedia('(max-width: 768px)').matches; },
   applyMode() {
     const sheet = this.isSheet();
     $('theory-panel').setAttribute('aria-modal', sheet ? 'true' : 'false');
+    if (sheet) this.resetInline();
     $('theory-backdrop').classList.toggle('hidden', !(this.open && sheet));
     document.body.classList.toggle('sheet-open', this.open && sheet);
   },
@@ -314,6 +399,7 @@ const Theory = {
     $('theory-fab').setAttribute('aria-expanded', 'true');
     $('theory-fab').classList.add('active');
     this.applyMode();
+    this.clamp();
     $('theory-close').focus({ preventScroll: true });
   },
   close() {
@@ -330,6 +416,29 @@ const Theory = {
     else if (this.open) this.fill();
   }
 };
+
+/** Evita a capo "strani" nei pannelli dei dati: numero e unità restano uniti (spazio non separabile)
+ *  e i percorsi tipo T–Γ–L–X non si spezzano sui trattini. Agisce sui nodi di testo, quindi
+ *  non altera l'HTML né le formule. Ogni volta che un pannello viene riscritto si ripete. */
+function glueText(root) {
+  const unit = /([\d⁰¹²³⁴⁵⁶⁷⁸⁹]) (?=(?:eV|meV|Å|K\b|Ry|cm|m\/s|%|ms|nm|e⁻|u\b|THz|GPa|°|π\/a))/g;
+  const dash = /([^\s⁠])–(?=[^\s⁠])/g;
+  const colon = /(:) (?=[+\-−]?\d)/g;          // "L: −23.7 meV" non si spezza dopo i due punti
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let n = w.nextNode(); n; n = w.nextNode()) {
+    const v = n.nodeValue, r = v.replace(unit, '$1 ').replace(colon, '$1 ').replace(dash, '$1–⁠').replace(/⁠+/g, '⁠');
+    if (r !== v) n.nodeValue = r;
+  }
+}
+function initTextGlue() {
+  const mo = new MutationObserver(list => {
+    for (const m of list) m.addedNodes.forEach(nd => { if (nd.nodeType === 1) glueText(nd); else if (nd.nodeType === 3 && nd.parentElement) glueText(nd.parentElement); });
+  });
+  document.querySelectorAll('.readout, .b3-notes, .ctrl-pane .hint').forEach(el => {
+    glueText(el);
+    mo.observe(el, { childList: true, subtree: true });
+  });
+}
 
 /** Il testo intero dei badge è sempre leggibile passando il mouse (title),
  *  anche quando sul desktop viene accorciato con i puntini di sospensione. */
@@ -369,10 +478,6 @@ Tools.lattice = {
     $('lat-struct').addEventListener('change', () => this.rebuild());
     $('lat-clip').addEventListener('change', update);
     $('lat-btn-touch').addEventListener('click', () => this.animateTo(1));
-    $('lat-btn-tab').addEventListener('click', () => {
-      const mat = M()[$('lat-mat').value];
-      this.animateTo(Math.min(1, mat.rMetal / (Physics.STRUCTURES[$('lat-struct').value].touch * mat.a)));
-    });
     $('lat-struct').value = M()[$('lat-mat').value].structure;
     this.rebuild();
   },
@@ -663,7 +768,21 @@ Tools.kp = {
     // confronto con la teoria perturbativa (elettrone quasi libero):
     // gap n-esimo ≈ 2|V_G|, con V_G = V0·sin(nπb/a)/(nπ) (coeff. di Fourier della barriera)
     const nfe = n => 2 * V0 * Math.abs(Math.sin(n * Math.PI * bf)) / (n * Math.PI);
-    const kind = F ? (F.metal ? '<span class="ok">metallo</span>' : '<span class="hl">isolante</span>') : '—';
+    // Modello 1D: Z dispari → banda a metà (metallo); Z pari → bande piene (con gap) o bande che si toccano.
+    // NON è il carattere del materiale reale: in 3D le bande possono sovrapporsi (Mg, Be, Fe…) oppure
+    // il gap è piccolo (Si, Ge, GaAs: semiconduttori, non isolanti).
+    const kind = !F ? '—' : mat.valence % 2 === 1 ? '<span class="ok">banda a metà → metallo</span>'
+      : F.metal ? '<span class="ok">bande che si toccano → metallo</span>'
+      : `<span class="hl">bande piene, gap ${fmt(F.gap, 2)} eV</span>`;
+    const real = mat.character === 'semiconduttore' ? `<span class="hl">semiconduttore</span> (gap ${fmt(mat.expGap, 2)} eV)`
+      : mat.character === 'semimetallo' ? '<span class="ok">semimetallo</span>' : '<span class="ok">metallo</span>';
+    // spiegazione quando il modello 1D e la realtà non coincidono
+    const oneDmetal = !F || mat.valence % 2 === 1 || F.metal;
+    const mismatch = mat.character === 'semiconduttore'
+      ? (oneDmetal ? 'Con V₀ ≈ 0 il modello non ha gap: aumenta V₀ per aprirlo. Il materiale reale ha il gap sperimentale indicato (è un semiconduttore, non un isolante).'
+        : 'Il gap del modello dipende da V₀ e a (sliders), non è quello del materiale: il valore reale è quello sperimentale.')
+      : (!oneDmetal && mat.valence % 2 === 0
+        ? 'In 1D un numero pari di elettroni riempie bande intere; nel cristallo 3D le bande si sovrappongono in energia e il materiale resta un metallo.' : '');
     $('kp-badge').textContent = V0 === 0 ? 'V₀ = 0 · parabola libera ripiegata' : `${kp.gaps.filter(g => g.width > 0.02).length} gap aperti`;
     $('kp-badge').className = 'badge' + (V0 > 0 ? ' hot' : '');
     $('kp-readout').innerHTML = `
@@ -675,7 +794,9 @@ Tools.kp = {
       <hr>
       <div class="row"><span>${mat.name}: Z_v</span><b>${mat.valence} e⁻/cella</b></div>
       <div class="row"><span>E_F</span><b>${F ? fmt(F.EF, 3) + ' eV' : 'fuori scala'}</b></div>
-      <div class="row"><span>carattere (1D)</span><span>${kind}</span></div>`;
+      <div class="row"><span>modello 1D</span><span>${kind}</span></div>
+      <div class="row"><span>${mat.name} reale (3D)</span><b>${real}</b></div>
+      ${mismatch ? `<span class="hint">${mismatch}</span>` : ''}`;
   }
 };
 
@@ -980,25 +1101,38 @@ Tools.bands3d = {
     this.chart = Visuals.makeBandChart($('b3-chart'), {
       describeK: x => this.describeK(x)          // titolo del tooltip: posizione lungo il percorso
     });
+    this.real = new Visuals.StructureView($('b3-real'));
+    this.bz = new Visuals.StructureView($('b3-bz'));
+    this.geoKey = null;
     ['b3-mat', 'b3-basis'].forEach(id => $(id).addEventListener('change', () => this.update()));
     $('b3-gap').addEventListener('change', () => this.draw());
+    // zoom attorno a E_F: utile per il Bi (sovrapposizione di decine di meV) e per il cono di Dirac
+    const zoom = document.createElement('label');
+    zoom.className = 'check'; zoom.id = 'b3-zoom-wrap';
+    zoom.innerHTML = '<input type="checkbox" id="b3-zoom"> <span id="b3-zoom-text">Ingrandisci attorno a E<sub>F</sub></span>';
+    $('b3-gap').closest('label').after(zoom);
+    $('b3-zoom').addEventListener('change', () => this.draw());
     this.update();
   },
+  views() { return [this.real, this.bz]; },
   update() {
     const key = $('b3-mat').value, g2 = Number($('b3-basis').value);
-    const ck = `${key}|${g2}`;
+    const st = M()[key].structure;
+    // il numero di onde piane conta solo per i calcoli a onde piane; il tight binding non lo usa
+    const tb = st === 'rhombohedral' || st === 'honeycomb';
+    $('b3-basis').hidden = tb; $('b3-basis').previousElementSibling.hidden = tb;
+    const ck = `${key}|${tb ? 0 : g2}`;
     if (this.cache.has(ck)) { this.res = this.cache.get(ck); this.draw(); return; }
     $('b3-badge').textContent = 'Calcolo in corso…';
     $('b3-badge').className = 'badge';
-    $('b3-readout').innerHTML = '<span>Diagonalizzazione dell\'hamiltoniana in onde piane per ogni punto k…</span>';
+    $('b3-readout').innerHTML = '<span>Diagonalizzazione dell\'hamiltoniana per ogni punto k…</span>';
     // doppio requestAnimationFrame: garantisce che il messaggio sia disegnato prima del calcolo
     requestAnimationFrame(() => requestAnimationFrame(() => {
       const t0 = performance.now();
       const res = Physics.epmBands(key, { g2max: g2 });
       res.ms = performance.now() - t0;
       this.cache.set(ck, res);
-      this.res = res;
-      this.draw();
+      if ($('b3-mat').value === key) { this.res = res; this.draw(); }
     }));
   },
   /** Descrive l'ascissa del percorso: "Γ→X, 45%" oppure il punto ad alta simmetria. */
@@ -1015,9 +1149,35 @@ Tools.bands3d = {
     }
     return `x = ${x.toFixed(3)}`;
   },
+  /** Vista 3D della struttura e della zona di Brillouin (solo se cambia il materiale). */
+  showGeometry(key) {
+    if (this.geoKey === key) return;
+    this.geoKey = key;
+    const geo = Physics.crystalGeometry(key);
+    this.real.showReal(geo);
+    this.bz.showBZ(geo);
+    const pts = [...new Set(geo.path.flatMap(([a, b]) => [a, b]))].map(p => p === 'G' ? 'Γ' : p);
+    $('b3-real-label').textContent = '· ' + geo.cellLabel;
+    $('b3-bz-label').textContent = '· punti: ' + pts.join(', ');
+    this.real.autoSpin = this.bz.autoSpin = true;
+  },
+  /** Mostra nel pannello dei controlli le considerazioni sul materiale scelto. */
+  showNote(key) {
+    const store = $('b3-note-store');
+    const src = store.querySelector(`[data-mat="${key}"]`) || store.querySelector('[data-mat="*"]');
+    const box = $('b3-notes');
+    box.replaceChildren(src.cloneNode(true));
+    typeset(box);
+  },
   draw() {
-    const r = this.res, C = Visuals.COLORS, info = r.info, mat = M()[$('b3-mat').value];
+    const r = this.res, C = Visuals.COLORS, info = r.info, key = $('b3-mat').value, mat = M()[key];
+    this.showGeometry(key);
+    this.showNote(key);
     const show = $('b3-gap').checked;
+    const zoomable = !!(info.semimetal || info.dirac);
+    $('b3-zoom-wrap').hidden = !zoomable;
+    const zoom = zoomable && $('b3-zoom').checked;
+    $('b3-title').textContent = 'Bande reali lungo ' + r.ticks.map(t => t.label.replace(/,/g, '|')).join(' → ');
     const xmax = r.x[r.x.length - 1];
     const P = r.P, filled = P.filled || 0;
     this.chart.data.datasets = r.bands.map((b, i) => {
@@ -1037,12 +1197,32 @@ Tools.bands3d = {
     // (suggestedMin/Max fissano solo l'estensione minima della finestra)
     const allE = r.bands.flat();
     const y = this.chart.options.scales.y;
-    delete y.min; delete y.max;
-    y.suggestedMin = Math.min(-14, Math.floor(Math.min(...allE)) - 1);
-    y.suggestedMax = Math.max(15, Math.ceil(Math.max(...allE)) + 1);
+    delete y.min; delete y.max; delete y.suggestedMin; delete y.suggestedMax;
+    if (zoom) {
+      const w = info.semimetal ? 0.12 : 1.0;
+      y.min = -w; y.max = w;
+    } else if (info.semimetal) {
+      // Bi: le bande s a −10 eV schiacciano la figura; si mostra la finestra dei livelli p
+      y.min = -4; y.max = 4;
+    } else {
+      y.suggestedMin = Math.min(-14, Math.floor(Math.min(...allE)) - 1);
+      y.suggestedMax = Math.max(15, Math.ceil(Math.max(...allE)) + 1);
+    }
     const ov = { xTicks: r.ticks.map(t => ({ x: t.x, label: t.label })), hLines: [] };
     if (info.metal) {
       ov.hLines.push({ y: 0, color: C.accent, dash: [6, 4], label: 'E_F' });
+    } else if (info.semimetal) {
+      ov.hLines.push({ y: 0, color: C.accent, dash: [6, 4], label: 'E_F' });
+      if (show) {
+        ov.markers = [
+          { x: info.vbm.x, y: info.Eh, color: C.accent, label: 'T: lacune', below: false },
+          { x: info.cbm.x, y: info.Ee, color: C.danger, label: 'L: elettroni', below: true }
+        ];
+        ov.yRanges = [{ from: info.Ee, to: info.Eh, color: 'rgba(255,181,71,.16)' }];
+      }
+    } else if (info.dirac) {
+      ov.hLines.push({ y: 0, color: C.accent, dash: [6, 4], label: 'E_F = E_Dirac' });
+      if (show) ov.markers = [{ x: info.xK, y: 0, color: C.ok, label: 'cono di Dirac (K)', below: true }];
     } else if (show) {
       const vbm = { x: info.vbm.x, y: 0 }, cbm = { x: info.cbm.x, y: info.cbm.E };
       ov.yRanges = [{ from: 0, to: info.gap, color: 'rgba(255,107,129,.10)' }];
@@ -1056,8 +1236,12 @@ Tools.bands3d = {
     this.chart.options.plugins.overlays = ov;
     this.chart.update('none');
 
-    // avviso: per i metalli il modello è semplificato rispetto ai semiconduttori
-    if (info.metal) {
+    // avvisi sul modello usato
+    if (info.semimetal) {
+      setNotice('bands3d', '⚠ Modello <b>tight binding sp³ con spin-orbita</b> sul reticolo A7 vero, parametri nello stile di Liu &amp; Allen (PRB 52, 1566): riproduce l\'ordine di grandezza di sovrapposizione e gap in L, non è un fit quantitativo.');
+    } else if (info.dirac) {
+      setNotice('bands3d', '⚠ Solo le bande <b>π</b> (orbitali p<sub>z</sub>), tight binding con primi (t) e secondi (t′) vicini: le bande σ non sono mostrate.');
+    } else if (info.metal) {
       const base = info.approx
         ? 'Modello semplificato: elettrone quasi libero sul reticolo vero, con pseudopotenziale empty core schermato (parametri approssimati).'
         : 'Metallo semplice: pseudopotenziale locale a due coefficienti (Ashcroft), più semplice del modello usato per i semiconduttori.';
@@ -1066,8 +1250,38 @@ Tools.bands3d = {
     } else setNotice('bands3d', null);
 
     const badge = $('b3-badge');
-    const latName = { fcc: 'CFC', bcc: 'CCC', sc: 'SC' }[r.lattice];
-    if (info.metal) {
+    const latName = { fcc: 'CFC', bcc: 'CCC', sc: 'SC', hcp: 'esagonale compatta', rhombohedral: 'romboedrica (A7)', honeycomb: 'nido d\'ape 2D' }[r.lattice];
+    const meV = v => fmt(v * 1000, 1);
+    if (info.semimetal) {
+      badge.textContent = `${mat.name}: semimetallo · sovrapposizione ${meV(info.overlap)} meV`;
+      badge.className = 'badge good';
+      $('b3-readout').innerHTML = `
+        <div class="row"><span>reticolo / percorso</span><b>${latName} · ${r.ticks.map(t => t.label).join('–')}</b></div>
+        <div class="row"><span>sovrapposizione T→L</span><b class="hl">${meV(info.overlap)} meV</b></div>
+        <div class="row"><span>  sperimentale</span><span>≈ 38 meV</span></div>
+        <div class="row"><span>gap diretta in L</span><b>${meV(info.gapL)} meV</b></div>
+        <div class="row"><span>  sperimentale</span><span>≈ 15 meV</span></div>
+        <div class="row"><span>gap diretta in T</span><span>${meV(info.gapT)} meV</span></div>
+        <hr>
+        <div class="row"><span>massimo di valenza</span><b>${info.EhAt}: +${meV(info.Eh)} meV</b></div>
+        <div class="row"><span>minimo di conduzione</span><b>${info.EeAt}: ${meV(info.Ee)} meV</b></div>
+        <div class="row"><span>densità n = p (neutralità)</span><b>${(info.nCm3 / 1e17).toFixed(1)}×10¹⁷ cm⁻³</b></div>
+        <div class="row"><span>distanze dei gusci</span><span>${info.shellDist.map(d => d.toFixed(2)).join(' · ')} Å</span></div>
+        <hr><span>Tasca di lacune a T (1) ed elettroni a L (3): E<sub>F</sub> è fissato da n = p. Attiva «Ingrandisci attorno a E<sub>F</sub>» per vedere le bande incrociarsi.</span>
+        <hr><div class="row"><span>tempo</span><span>${fmt(r.ms, 0)} ms</span></div>`;
+    } else if (info.dirac) {
+      badge.textContent = `${mat.name}: gap nulla · cono di Dirac in K`;
+      badge.className = 'badge good';
+      $('b3-readout').innerHTML = `
+        <div class="row"><span>reticolo / percorso</span><b>${latName} · ${r.ticks.map(t => t.label).join('–')}</b></div>
+        <div class="row"><span>gap in K</span><b class="ok">0 eV (Dirac)</b></div>
+        <div class="row"><span>t (primi vicini)</span><b>${fmt(info.t, 2)} eV</b></div>
+        <div class="row"><span>t′ (secondi vicini)</span><span>${fmt(info.t2, 2)} eV</span></div>
+        <div class="row"><span>a<sub>CC</sub></span><span>${fmt(info.a_cc, 3)} Å</span></div>
+        <div class="row"><span>v<sub>F</sub> = 3·t·a<sub>CC</sub>/2ħ</span><b class="hl">${fmt(info.vF / 1e6, 2)}×10⁶ m/s</b></div>
+        <div class="row"><span>E(π*) in M</span><span>${fmt(info.EM, 2)} eV</span></div>
+        <hr><span>Dispersione lineare E = ±ħv<sub>F</sub>|q| attorno a K: fermioni di Dirac senza massa. L'asimmetria tra le due bande viene da t′.</span>`;
+    } else if (info.metal) {
       badge.textContent = `${mat.name}: metallo · ${info.crossing} band${info.crossing === 1 ? 'a attraversa' : 'e attraversano'} E_F`;
       badge.className = 'badge good';
       $('b3-readout').innerHTML = `
@@ -1075,7 +1289,9 @@ Tools.bands3d = {
         <div class="row"><span>elettroni / atomo (Z_v)</span><b>${P.zv}</b></div>
         <div class="row"><span>k_F (elettrone libero)</span><b>${fmt(info.kF, 3)} Å⁻¹</b></div>
         <div class="row"><span>E_F sopra il fondo banda</span><b>${fmt(-Math.min(...r.bands[0]), 2)} eV</b></div>
-        ${info.shells.map(sh => `<div class="row"><span>V(|G|² = ${+sh.q2.toFixed(2)})</span><span>${fmt(sh.V, 4)} Ry</span></div>`).join('')}
+        ${info.shells.map(sh => sh.label
+          ? `<div class="row"><span>${sh.label}</span><span>${fmt(sh.V, 3)} ${sh.unit || 'eV'}</span></div>`
+          : `<div class="row"><span>V(|G|² = ${+sh.q2.toFixed(2)})</span><span>${fmt(sh.V, 4)} Ry</span></div>`).join('')}
         <hr>
         <span>Le bande sono quasi parabole libere ripiegate nella zona di Brillouin: il potenziale debole apre solo piccoli gap e alcune bande tagliano il livello di Fermi. Niente gap → metallo.</span>
         <hr><div class="row"><span>onde piane / tempo</span><span>${r.nG} / ${fmt(r.ms, 0)} ms</span></div>`;
@@ -1124,5 +1340,6 @@ document.addEventListener('DOMContentLoaded', () => {
   Visuals.initCharts();
   Theory.init();
   initBadges();
+  initTextGlue();
   route();
 });

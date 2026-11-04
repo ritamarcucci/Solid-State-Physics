@@ -175,13 +175,22 @@ code { font-family: var(--font-mono); font-size: .92em; }
 .module-card:hover, .module-card:focus-visible { transform: translateY(-8px); outline: none; }
 .module-card:hover::before, .module-card:focus-visible::before { opacity: .9; }
 .card-art, .card-body { position: relative; background: linear-gradient(170deg, var(--panel-2), var(--panel) 60%); }
+.art-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.art-chip {
+  position: absolute; left: 16px; bottom: 14px; z-index: 1;
+  padding: 5px 12px; border-radius: 99px;
+  font: 600 11px var(--font-mono); letter-spacing: .08em; color: var(--muted);
+  background: rgba(5, 7, 15, .6); border: 1px solid rgba(255, 255, 255, .1);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
 .card-art {
-  height: 190px; display: grid; place-items: center;
+  position: relative; overflow: hidden;
+  height: 270px; display: grid; place-items: center;
   border-radius: 27px 27px 0 0;
   background: radial-gradient(circle at 50% 40%, #101a33, var(--bg-2));
   border-bottom: 1px solid var(--line);
 }
-.card-art::after, .card-body::after { /* luce morbida che segue il mouse */
+.card-body::after { /* luce morbida che segue il mouse (solo sul testo: le copertine non reagiscono) */
   content: ""; position: absolute; inset: 0; pointer-events: none;
   background: radial-gradient(500px circle at var(--mx) var(--my), rgba(255, 255, 255, .06), transparent 45%);
 }
@@ -394,6 +403,28 @@ code { font-family: var(--font-mono); font-size: .92em; }
 .dot-lit { background: #fff27a; box-shadow: 0 0 8px #fff27a; }
 .dot-sphere { border: 2px solid var(--accent-2); }
 
+/* ---- bande reali 3D: grafico + struttura cristallina + zona di Brillouin ----
+   righe esplicite (minmax(0,1fr)): senza, Chart.js e WebGL fanno crescere il contenitore */
+/* minmax(0,1fr) e min-width:0: senza, il testo lungo delle didascalie allarga la colonna e
+   il riquadro B (zona di Brillouin) esce dallo schermo. Altezze minime + scorrimento verticale
+   per gli schermi bassi: nessun riquadro viene mai tagliato. */
+#tool-bands3d .viz-pane { overflow-y: auto; overflow-x: hidden; }
+#tool-bands3d .chart-host.grow { flex: 1.3 1 0; min-height: 210px; }
+.b3-row {
+  flex: 1 1 0; min-height: 230px;
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 12px;
+}
+.b3-row .panel { min-width: 0; }
+.b3-row .panel figcaption { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.b3-row .panel figcaption span { color: var(--faint); font-size: 11.5px; }
+.b3-notes { gap: 0; }
+.b3-note { font-size: 13px; color: var(--muted); }
+.b3-note h4 { margin: 0 0 8px; font-size: 14.5px; color: var(--accent-2); }
+.b3-note p { margin: 0 0 8px; }
+.b3-note ul { margin: 0 0 8px; padding-left: 18px; display: flex; flex-direction: column; gap: 7px; }
+.b3-note b { color: var(--text); }
+.b3-note .hint { margin-top: 6px; }
+
 /* ---- tabella picchi (polveri) ---- */
 .table-wrap {
   flex: 0 0 auto; max-height: 160px; overflow: auto;
@@ -486,7 +517,13 @@ input[type=range]:active::-webkit-slider-thumb { transform: scale(1.2); }
 .readout b { color: var(--text); font-weight: 600; }
 .readout .hl { color: var(--accent); }
 .readout .ok { color: var(--ok); }
-.readout .row { display: flex; justify-content: space-between; gap: 10px; }
+.readout .row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+/* a capo solo tra parole: l'etichetta cede spazio, il valore (a destra) non si spezza dentro numeri e unità */
+.readout { overflow-wrap: normal; word-break: normal; hyphens: none; }
+.readout .row > :first-child { flex: 1 1 auto; min-width: 0; }
+.readout .row > :last-child:not(:first-child) { flex: 0 1 auto; max-width: 64%; text-align: right; }
+.readout .row > :only-child { flex: 1 1 auto; }
+.ctrl-group .hint, .b3-note, .info-body { overflow-wrap: normal; word-break: normal; hyphens: none; }
 .readout hr { margin: 6px 0; border: 0; border-top: 1px solid var(--line); }
 .meter { height: 8px; margin: 6px 0 2px; border-radius: 8px; background: var(--line); overflow: hidden; }
 .meter > span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent-2), var(--accent)); transition: width .15s; }
@@ -511,18 +548,35 @@ input[type=range]:active::-webkit-slider-thumb { transform: scale(1.2); }
 /* Desktop: widget ancorato in basso a sinistra, NON modale e senza
    oscurare la pagina: si legge mentre si usano i controlli. */
 .theory-panel {
-  position: fixed; left: 16px; bottom: 16px; z-index: 55;
-  width: min(440px, calc(100vw - 32px));
-  /* altezza limitata in modo che le voci della sidebar (fino a 4 strumenti)
-     restino visibili e cliccabili sopra la finestra */
-  max-height: clamp(300px, calc(100vh - 470px), 620px);
+  /* esce dal basso a destra, sopra il pulsante; si può trascinare per la testata
+     (main.js: Theory.initDrag, che imposta left/top inline) */
+  position: fixed; right: 20px; bottom: 80px; z-index: 55;
+  width: min(780px, calc(100vw - 40px));
+  max-height: min(84vh, 860px);
   display: flex; flex-direction: column;
   background: var(--panel); border: 1px solid var(--line-2); border-radius: 16px;
   box-shadow: 0 24px 60px -18px rgba(0, 0, 0, .85);
   animation: panelIn .3s var(--ease) both;
 }
 @keyframes panelIn { from { opacity: 0; transform: translateY(14px); } }
+.theory-panel.dragging { animation: none; user-select: none; }
+/* maniglie di ridimensionamento (solo desktop): bordi e angoli */
+.theory-resize { position: absolute; z-index: 3; touch-action: none; }
+.tr-n  { top: -4px;    left: 14px;  right: 14px; height: 9px; cursor: ns-resize; }
+.tr-s  { bottom: -4px; left: 14px;  right: 14px; height: 9px; cursor: ns-resize; }
+.tr-e  { right: -4px;  top: 14px;   bottom: 14px; width: 9px; cursor: ew-resize; }
+.tr-w  { left: -4px;   top: 14px;   bottom: 14px; width: 9px; cursor: ew-resize; }
+.tr-ne { top: -5px;    right: -5px; width: 18px; height: 18px; cursor: nesw-resize; }
+.tr-nw { top: -5px;    left: -5px;  width: 18px; height: 18px; cursor: nwse-resize; }
+.tr-se { bottom: -5px; right: -5px; width: 18px; height: 18px; cursor: nwse-resize; }
+.tr-sw { bottom: -5px; left: -5px;  width: 18px; height: 18px; cursor: nesw-resize; }
+.tr-se::after {                       /* piccola impugnatura visibile nell'angolo */
+  content: ""; position: absolute; right: 7px; bottom: 7px; width: 9px; height: 9px;
+  border-right: 2px solid var(--faint); border-bottom: 2px solid var(--faint); border-radius: 0 0 3px 0; opacity: .7;
+}
+.theory-panel.dragging .theory-head { cursor: grabbing; }
 .theory-head {
+  cursor: grab; touch-action: none; user-select: none;
   display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
   padding: 14px 14px 10px 18px; border-bottom: 1px solid var(--line);
   flex: none;
@@ -535,7 +589,7 @@ input[type=range]:active::-webkit-slider-thumb { transform: scale(1.2); }
   font-size: 22px; line-height: 1; display: grid; place-items: center;
 }
 .theory-close:hover { border-color: var(--accent-2); }
-.theory-body { overflow-y: auto; overscroll-behavior: contain; padding: 4px 18px 18px; }
+.theory-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px 18px 18px; }
 .theory-sec h4 { margin: 14px 0 8px; font-size: 14px; color: var(--accent-2); }
 .theory-sec + .theory-sec { border-top: 1px solid var(--line); margin-top: 10px; }
 .info-body { display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; color: var(--muted); }
@@ -599,6 +653,9 @@ mjx-container[display="true"] { margin: .4em 0 !important; overflow-x: auto; ove
   .viz-pane { height: 72vh; padding: 14px 16px; }
   .ewald-grid { grid-template-columns: 1fr; grid-template-rows: repeat(3, minmax(240px, 1fr)) auto; }
   #tool-ewald .viz-pane { height: auto; }
+  #tool-bands3d .viz-pane { height: auto; }
+  #tool-bands3d .chart-host.grow { flex: none; height: 360px; }
+  .b3-row { flex: none; grid-template-columns: 1fr; grid-template-rows: repeat(2, 300px); }
   /* Tight binding: i due grafici hanno ciascuno un'altezza propria e si impilano */
   #tool-tb .viz-pane { height: auto; }
   #tool-tb .chart-row { flex: none; grid-template-rows: repeat(2, 300px); }
@@ -614,7 +671,7 @@ mjx-container[display="true"] { margin: .4em 0 !important; overflow-x: auto; ove
   .chart-host.grow { min-height: 320px; }
   /* teoria: bottom sheet modale */
   .theory-panel {
-    left: 0; right: 0; bottom: 0; width: 100%;
+    left: 0 !important; right: 0 !important; top: auto !important; bottom: 0 !important; width: 100% !important;
     max-height: 82vh; border-radius: 18px 18px 0 0;
     border-left: 0; border-right: 0; border-bottom: 0;
     animation-name: sheetIn;
@@ -623,6 +680,7 @@ mjx-container[display="true"] { margin: .4em 0 !important; overflow-x: auto; ove
   .theory-fab { right: 12px; bottom: 12px; width: 46px; height: 46px; padding: 0; justify-content: center; opacity: .95; }
   .theory-fab .fab-icon { font-size: 18px; }
   .theory-fab .fab-text { display: none; }
+  .theory-resize { display: none; }
   body.sheet-open { overflow: hidden; }
   body.sheet-open .theory-fab { display: none; }     /* la scheda ha già la sua X */
   .num-input { flex-basis: 70px; width: 70px; }

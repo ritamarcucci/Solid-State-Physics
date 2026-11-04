@@ -104,15 +104,7 @@
   <section class="cards" aria-label="Moduli">
     <button type="button" class="module-card" data-module="cryst">
       <div class="card-art" aria-hidden="true">
-        <svg viewBox="0 0 200 140">
-          <g class="cube" fill="none" stroke-width="1.6">
-            <path d="M60 50 L120 30 L160 55 L100 75 Z"/><path d="M60 50 L60 110 L100 135 L100 75"/><path d="M160 55 L160 115 L100 135"/>
-          </g>
-          <g class="atoms">
-            <circle cx="60" cy="50" r="7"/><circle cx="120" cy="30" r="7"/><circle cx="160" cy="55" r="7"/><circle cx="100" cy="75" r="7"/>
-            <circle cx="60" cy="110" r="7"/><circle cx="100" cy="135" r="7"/><circle cx="160" cy="115" r="7"/><circle class="hot" cx="110" cy="82" r="9"/>
-          </g>
-        </svg>
+        <canvas class="art-canvas" data-art="cryst"></canvas><span class="art-chip">CFC · reticolo + raggi X</span>
       </div>
       <div class="card-body">
         <span class="card-index">Modulo 1</span>
@@ -125,12 +117,7 @@
 
     <button type="button" class="module-card" data-module="bands">
       <div class="card-art" aria-hidden="true">
-        <svg viewBox="0 0 200 140">
-          <rect class="gap" x="20" y="62" width="160" height="16"/>
-          <path class="band" d="M20 110 Q100 132 180 78" fill="none" stroke-width="3"/>
-          <path class="band b2" d="M20 30 Q100 8 180 62" fill="none" stroke-width="3"/>
-          <path class="fermi" d="M20 96 L180 96" stroke-dasharray="5 4" stroke-width="1.5"/>
-        </svg>
+        <canvas class="art-canvas" data-art="bands"></canvas><span class="art-chip">E(k) · gap · transizione ottica</span>
       </div>
       <div class="card-body">
         <span class="card-index">Modulo 2</span>
@@ -191,7 +178,6 @@
           <label for="lat-r">Raggio atomico <output id="lat-r-out"></output></label>
           <input type="range" id="lat-r" min="0" max="1000" value="350">
           <div class="btn-row">
-            <button type="button" class="btn" id="lat-btn-tab">Raggio tabulato</button>
             <button type="button" class="btn" id="lat-btn-touch">Porta a contatto</button>
           </div>
           <label class="check"><input type="checkbox" id="lat-clip"> Mostra solo la frazione di sfera dentro la cella</label>
@@ -386,8 +372,18 @@
     <!-- ===================== 2.4 BANDE REALI 3D (EPM) ===================== -->
     <section class="tool" id="tool-bands3d" data-tool="bands3d" data-module="bands">
       <div class="viz-pane">
-        <div class="viz-head"><h3>Bande reali lungo L → Γ → X → U,K → Γ</h3><span class="badge" id="b3-badge">—</span></div>
+        <div class="viz-head"><h3 id="b3-title">Bande reali</h3><span class="badge" id="b3-badge">—</span></div>
         <div class="chart-host grow"><canvas id="b3-chart"></canvas></div>
+        <div class="b3-row">
+          <figure class="panel">
+            <figcaption><b>A</b> Struttura cristallina <span id="b3-real-label"></span></figcaption>
+            <div class="three-host" id="b3-real"></div>
+          </figure>
+          <figure class="panel">
+            <figcaption><b>B</b> Zona di Brillouin e percorso <span id="b3-bz-label"></span></figcaption>
+            <div class="three-host" id="b3-bz"></div>
+          </figure>
+        </div>
       </div>
       <div class="ctrl-pane">
         <div class="ctrl-group">
@@ -400,9 +396,10 @@
             <option value="27">169 onde piane (|G|² ≤ 27) — convergenza</option>
           </select>
           <label class="check"><input type="checkbox" id="b3-gap" checked> Evidenzia gap, massimo di valenza e minimo di conduzione</label>
-          <p class="hint">Silicio: gap indiretta · GaAs: gap diretta · Alluminio: bande che attraversano il livello di Fermi. Gli altri metalli usano un modello semplificato (elettrone quasi libero).</p>
+          <p class="hint" id="b3-hint">Silicio: gap indiretta · GaAs: gap diretta · Alluminio, berillio: bande che attraversano il livello di Fermi · Bismuto: semimetallo · Grafene: cono di Dirac. Gli altri metalli usano un modello semplificato (elettrone quasi libero).</p>
         </div>
         <div class="readout" id="b3-readout"></div>
+        <div class="ctrl-group b3-notes" id="b3-notes"></div>
       </div>
     </section>
 
@@ -528,6 +525,28 @@
     </div>
     <div class="theory-src" data-tool="bands3d">
       <section class="theory-sec">
+        <h4>L'equazione di Schrödinger da risolvere</h4>
+        <div class="info-body">
+          <p>Un elettrone nel cristallo obbedisce all'equazione agli autovalori (a un elettrone, nuclei fermi, potenziale medio periodico):</p>
+          <p>$$\hat H\psi(\mathbf r)=\Big[-\frac{\hbar^2}{2m}\nabla^2+V(\mathbf r)\Big]\psi(\mathbf r)=E\,\psi(\mathbf r),\qquad V(\mathbf r+\mathbf R)=V(\mathbf r)$$</p>
+          <p>Per il teorema di Bloch le autofunzioni hanno la forma</p>
+          <p>$$\psi_{n\mathbf k}(\mathbf r)=e^{i\mathbf k\cdot\mathbf r}\,u_{n\mathbf k}(\mathbf r),\qquad u_{n\mathbf k}(\mathbf r+\mathbf R)=u_{n\mathbf k}(\mathbf r)$$</p>
+          <p>e per ogni $\mathbf k$ della prima zona di Brillouin resta da risolvere il problema per la sola parte periodica:</p>
+          <p>$$\Big[\frac{\hbar^2}{2m}(-i\nabla+\mathbf k)^2+V(\mathbf r)\Big]u_{n\mathbf k}(\mathbf r)=E_n(\mathbf k)\,u_{n\mathbf k}(\mathbf r)$$</p>
+          <p><b>Autovalori</b>: per ogni $\mathbf k$ una successione discreta $E_1\le E_2\le\dots$; al variare di $\mathbf k$ formano le bande $E_n(\mathbf k)$, funzioni continue, periodiche nel reticolo reciproco, $E_n(\mathbf k+\mathbf G)=E_n(\mathbf k)$, e pari, $E_n(-\mathbf k)=E_n(\mathbf k)$. <b>Autofunzioni</b>: onde piane modulate dal reticolo, con densità $|\psi_{n\mathbf k}|^2=|u_{n\mathbf k}|^2$ periodica.</p>
+          <p>Nella pratica si sceglie una base e si diagonalizza una matrice, per ogni $\mathbf k$ del percorso:</p>
+          <p><b>Onde piane</b> (Si, Ge, GaAs, Al, Be, Mg), $u_{n\mathbf k}=\sum_{\mathbf G}c_{\mathbf G}\,e^{i\mathbf G\cdot\mathbf r}$:</p>
+          <p>$$\sum_{\mathbf G'}\Big[\frac{\hbar^2}{2m}|\mathbf k+\mathbf G|^2\delta_{\mathbf G\mathbf G'}+V(\mathbf G-\mathbf G')\Big]c_{\mathbf G'}=E\,c_{\mathbf G}$$</p>
+          <p>L'autovettore è l'insieme dei coefficienti $c_{\mathbf G}$ (quante onde piane compongono lo stato).</p>
+          <p><b>Tight binding</b> (Bi, grafene), $\psi_{\mathbf k}=\sum_\alpha c_\alpha\sum_{\mathbf R}e^{i\mathbf k\cdot\mathbf R}\,\phi_\alpha(\mathbf r-\mathbf R-\vec{\tau}_\alpha)$:</p>
+          <p>$$\sum_\beta H_{\alpha\beta}(\mathbf k)\,c_\beta=E\,c_\alpha,\qquad H_{\alpha\beta}(\mathbf k)=\sum_{\mathbf d}t_{\alpha\beta}(\mathbf d)\,e^{i\mathbf k\cdot\mathbf d}$$</p>
+          <p><i>Grafene</i>: matrice $2\times2$ (sottoreticoli A, B), $h(\mathbf k)=-t\sum_{j=1}^{3}e^{i\mathbf k\cdot\vec{\delta}_j}$:</p>
+          <p>$$H=\begin{pmatrix}0&h\\h^*&0\end{pmatrix}\ \Rightarrow\ E_\pm(\mathbf k)=\pm|h(\mathbf k)|,\qquad c_\pm=\tfrac1{\sqrt2}\begin{pmatrix}1\\ \pm e^{-i\theta_{\mathbf k}}\end{pmatrix},\ \ \theta_{\mathbf k}=\arg h$$</p>
+          <p><i>Bismuto</i>: matrice $16\times16$ (2 atomi × orbitali $s,p_x,p_y,p_z$ × spin) con accoppiamento spin-orbita:</p>
+          <p>$$H(\mathbf k)=H_{\rm orb}(\mathbf k)\otimes\mathbf{1}_{\rm spin}+\xi\,\mathbf L\cdot\mathbf S$$</p>
+          <p>Con inversione e inversione temporale ogni livello è doppiamente degenere (coppie di Kramers): le 16 bande coincidono a due a due, e si vedono 8 curve.</p>
+        </div>
+      </section>      <section class="theory-sec">
         <h4>Pseudopotenziale empirico</h4>
         <div class="info-body">
             <p>Si sviluppano le funzioni di Bloch in onde piane, $\psi_{\mathbf k} = \sum_{\mathbf G} c_{\mathbf G}\, e^{i(\mathbf k+\mathbf G)\cdot\mathbf r}$, e si diagonalizza in ogni punto $\mathbf k$:</p>
@@ -537,10 +556,93 @@
             <p>Bastano tre fattori di forma simmetrici ($q^2 = 3, 8, 11$ in unità $(2\pi/a)^2$), più tre antisimmetrici per GaAs, che misura la differenza tra Ga e As: è il termine $V_A$ che rende la blenda meno simmetrica del diamante. Parametri di Cohen e Bergstresser (1966).</p>
             <p>Per l'alluminio, metallo semplice, bastano due coefficienti $V_{111}$ e $V_{200}$ (Ashcroft, 1963): le bande sono quasi parabole libere con piccoli gap ai bordi di zona, e alcune attraversano $E_F$, quindi è un metallo.</p>
             <p><b>Gap diretta o indiretta</b>: se il massimo della banda di valenza e il minimo di quella di conduzione cadono nello stesso $\mathbf k$ la gap è diretta (GaAs, in $\Gamma$) e un fotone basta per la transizione; se cadono in $\mathbf k$ diversi (Si: massimo in $\Gamma$, minimo all'85% di $\Gamma\to X$) serve anche un fonone. Per questo il silicio emette luce molto male.</p>
-            <p>Limiti del modello: niente spin-orbita e potenziale locale. La gap del Si risulta ≈ 0.8 eV contro 1.12 eV sperimentali, ma topologia delle bande e posizioni degli estremi sono corrette.</p>
+            <p>Limiti del modello (materiali a onde piane): niente spin-orbita e potenziale locale; per il bismuto lo spin-orbita è invece incluso nel tight binding. La gap del Si risulta ≈ 0.8 eV contro 1.12 eV sperimentali, ma topologia delle bande e posizioni degli estremi sono corrette.</p>
           </div>
       </section>
     </div>
+</div>
+
+<!-- =====================================================================
+     NOTE PER MATERIALE (Bande reali 3D): main.js ne mostra una nel pannello
+     dei controlli. Testo statico: le formule LaTeX non passano da stringhe JS.
+     ===================================================================== -->
+<div id="b3-note-store" class="tex2jax_ignore" hidden>
+
+  <div class="b3-note" data-mat="Si">
+    <h4>Silicio: perché la gap è indiretta</h4>
+    <p>Diamante = due reticoli CFC sfalsati di ¼ della diagonale; la zona di Brillouin è l'ottaedro troncato e il percorso L–Γ–X–W–K–Γ ne tocca i punti notevoli.</p>
+    <ul>
+      <li><b>Massimo di valenza in Γ</b>: lì convergono tre bande (lacune pesanti, leggere e split-off; lo spin-orbita, ≈ 44 meV, qui è trascurato).</li>
+      <li><b>Minimo di conduzione lungo Δ (Γ→X)</b>, a circa 0.85·(2π/a): non è in Γ. Ci sono <b>6 valli equivalenti</b> (±x, ±y, ±z), ellissoidi con massa longitudinale $m_\ell\approx0.92\,m_e$ e trasversale $m_t\approx0.19\,m_e$.</li>
+      <li>Poiché i due estremi hanno $\mathbf k$ diversi, un fotone (che porta impulso trascurabile) non basta: serve un fonone. Quindi il Si assorbe poco e <b>non emette</b> in modo efficiente (niente LED/laser, celle solari spesse).</li>
+      <li>Hall: nel Si drogato p domina la lacuna, $R_H=+1/(pe)>0$; nel tipo n è negativo.</li>
+    </ul>
+    <p class="hint">Nel modello a pseudopotenziale la gap esce ≈ 0.8 eV (sperimentale 1.12 eV): topologia e posizione degli estremi sono giuste, il valore assoluto no.</p>
+  </div>
+
+  <div class="b3-note" data-mat="Ge">
+    <h4>Germanio</h4>
+    <p>Come il silicio ha massimo di valenza in Γ, ma il minimo assoluto di conduzione è in <b>L</b> (4 valli), a soli 0.14 eV sopra la valle diretta in Γ: gap indiretta 0.66 eV, quasi diretta. Drogando e deformando il Ge si può renderla diretta.</p>
+  </div>
+
+  <div class="b3-note" data-mat="GaAs">
+    <h4>Arseniuro di gallio</h4>
+    <p>Gap <b>diretta</b> in Γ (1.42 eV): massimo di valenza e minimo di conduzione hanno lo stesso $\mathbf k$, quindi un fotone basta. Per questo GaAs è il materiale di LED, laser e celle ad alta efficienza. Il minimo in Γ ha massa molto piccola ($0.067\,m_e$): elettroni velocissimi.</p>
+  </div>
+
+  <div class="b3-note" data-mat="Al">
+    <h4>Alluminio</h4>
+    <p>Tre elettroni di valenza per atomo: la sfera di Fermi supera il primo bordo di zona e le bande, quasi parabole libere, attraversano $E_F$ in più punti. Il pseudopotenziale debole apre solo piccoli gap ai bordi (L, X, W): metallo.</p>
+  </div>
+
+  <div class="b3-note" data-mat="Be">
+    <h4>Berillio: un metallo con pochi portatori</h4>
+    <ul>
+      <li><b>hcp con c/a = 1.568</b> (ideale 1.633) e <b>2 atomi per cella</b> → 4 elettroni per cella, cioè un numero pari: se i gap ai bordi di zona fossero abbastanza grandi riempirebbero esattamente due bande e il Be sarebbe un isolante. Non lo è perché le bande <b>si sovrappongono in energia</b> (come nel Bi, ma molto di più): restano due piccole tasche.</li>
+      <li><b>Superficie di Fermi</b>: lacune nella seconda banda (la "corona", un anello di sei tasche nel piano $k_z=0$ attorno al punto K) ed elettroni nella terza (6 "sigari" lungo le linee H–K), con lo stesso volume: il metallo è compensato. Le tasche piccole spiegano la densità di stati a $E_F$ ≈ 1/5 di quella degli elettroni liberi: $\gamma\approx0.17$ contro ≈ 0.5 mJ·mol⁻¹·K⁻².</li>
+      <li><b>Coefficiente di Hall positivo</b>: è l'esempio classico di metallo con $R_H>0$ (Ashcroft &amp; Mermin). Con due specie di portatori
+        $$R_H=\frac{p\mu_h^2-n\mu_e^2}{e\,(p\mu_h+n\mu_e)^2}$$
+        e le lacune (curvatura della superficie di Fermi opposta a quella di una sfera: nell'orbita ciclotrone girano al contrario) vincono sul trasporto, quindi $R_H>0$ pur con un metallo "di elettroni".</li>
+    </ul>
+    <p class="hint">Modello: onde piane con potenziale locale empty-core schermato (parametri approssimati): la topologia qualitativa è giusta, i dettagli delle tasche no.</p>
+  </div>
+
+  <div class="b3-note" data-mat="Mg">
+    <h4>Magnesio</h4>
+    <p>Come il Be è hcp con 2 atomi per cella e 2 elettroni per atomo, ma c/a = 1.624 (quasi ideale) e il potenziale è più debole: la sovrapposizione delle bande è maggiore e il comportamento è più simile a un metallo quasi libero.</p>
+  </div>
+
+  <div class="b3-note" data-mat="Bi">
+    <h4>Bismuto: semimetallo e spin-orbita</h4>
+    <ul>
+      <li><b>Struttura A7</b> = reticolo cubico semplice con distorsione di Peierls: gli atomi si accoppiano in bilayer (3 legami corti da 3.07 Å e 3 lunghi da 3.53 Å), 2 atomi per cella. Con 5 elettroni per atomo i tre orbitali $p$ sarebbero mezzi pieni (metallo); la distorsione apre quasi un gap, ma non del tutto.</li>
+      <li><b>Sovrapposizione di banda</b>: il massimo di valenza in <b>T</b> sta sopra il minimo di conduzione in <b>L</b> di ≈ 38 meV (sperimentale). Risultato: <b>1 tasca di lacune a T e 3 tasche di elettroni a L</b>, con $n=p\approx3\times10^{17}$ cm⁻³ (un milionesimo di un metallo normale).</li>
+      <li><b>Spin-orbita forte</b> ($Z=83$, confrontabile con le larghezze di banda $p$). In L le bande sono quasi di Dirac, con una gap diretta di soli ≈ 15 meV e masse efficaci ≈ 0.001–0.01 $m_e$: mobilità enormi e magnetoresistenza gigante.</li>
+      <li><b>Coefficiente di Hall</b>: è un semimetallo compensato ($n=p$), quindi
+        $$R_H=\frac{\mu_h-\mu_e}{e\,n\,(\mu_h+\mu_e)}$$
+        il segno dipende solo da quale portatore è più mobile, e le tasche sono ellissoidi molto anisotrope: la mobilità dipende dall'orientazione di $\mathbf B$ rispetto all'asse trigonale, dalla temperatura e dal campo. Per questo $|R_H|$ del Bi è <b>enorme</b> (ordine $10^{-7}$ m³/C a 300 K, migliaia di volte un metallo normale) e il suo <b>segno non è universale</b>: dipende da orientazione del campo, temperatura e regime di campo, e <b>è positivo solo quando le lacune di T sono più mobili degli elettroni di L</b>. Il caso del segno positivo "per costruzione" è invece quello del Be.</li>
+    </ul>
+    <p class="hint">Modello: tight binding sp³ con spin-orbita sull'A7 vero, parametri nello stile di Liu &amp; Allen (PRB 52, 1566). Ottiene sovrapposizione e gap in L dell'ordine giusto (vedi sotto).</p>
+  </div>
+
+  <div class="b3-note" data-mat="Graphene">
+    <h4>Grafene: il cono di Dirac</h4>
+    <ul>
+      <li><b>Reticolo a nido d'ape</b>, 2 atomi (sottoreticoli A e B) per cella. Gli orbitali $\sigma$ ($sp^2$) formano i legami; l'orbitale $p_z$ dà le bande $\pi$ mostrate qui, con un elettrone per atomo: la banda inferiore è piena, la superiore vuota, e si toccano nei punti <b>K</b> e <b>K'</b>.</li>
+      <li><b>Vicino a K</b> $f(\mathbf k)\approx\tfrac{\sqrt3}{2}a\,(q_x\pm i q_y)$ e quindi
+        $$E_\pm(\mathbf q)=\pm\hbar v_F|\mathbf q|,\qquad v_F=\frac{3\,t\,a_{CC}}{2\hbar}\approx10^6\ \text{m/s}$$
+        La relazione è <b>lineare</b> (cono), non parabolica: gli elettroni si comportano come fermioni di Dirac <b>privi di massa</b>, con equazione $\hat H=\hbar v_F\,\vec{\sigma}\cdot\mathbf q$ in cui $\vec{\sigma}$ agisce sullo pseudospin A/B. Velocità indipendente dall'energia e densità di stati $\propto|E|$, nulla al punto di Dirac.</li>
+      <li><b>Il problema del gap nullo</b>: a $E_F$ non c'è una gap, quindi la conduttività non si spegne mai (minimo ≈ $4e^2/\pi h$ anche a densità zero) e un transistor di grafene non ha stato OFF: inutilizzabile in logica digitale. Per aprire una gap si usano nastri stretti (confinamento), il bilayer con campo elettrico, o un substrato che rompe l'equivalenza A/B (h-BN, SiC); l'accoppiamento spin-orbita intrinseco apre solo ≈ μeV.</li>
+      <li><b>Due coni (K e K')</b> inevitabili: lo impone il teorema di Nielsen–Ninomiya; con lo spin la degenerazione è 4. La fase di Berry è $\pi$ (lo pseudospin ruota di $2\pi$ attorno al cono): da qui l'effetto Hall quantistico semi-intero e l'assenza di retrodiffusione.</li>
+      <li><b>Hall ambipolare</b>: variando la tensione di gate $E_F$ attraversa il punto di Dirac. Lontano da esso $|R_H|=1/(ne)$ cresce avvicinandosi al punto neutro; a neutralità elettroni e lacune coesistono e $R_H$ cambia segno (da lacune, positivo, a elettroni, negativo) passando per zero.</li>
+    </ul>
+    <p class="hint">Modello: solo bande $\pi$ con $t=2.8$ eV (primi vicini) e $t'=0.1$ eV (secondi vicini, rompe la simmetria elettrone-lacuna).</p>
+  </div>
+
+  <div class="b3-note" data-mat="*">
+    <h4>Modello semplificato</h4>
+    <p>Per questo materiale non ci sono parametri tabulati di pseudopotenziale: si usa l'elettrone quasi libero sul reticolo vero, con potenziale empty-core schermato. Il risultato è qualitativo: non descrive le bande d (Fe, Ni, Cu, Ag, Au, W, Mo).</p>
+  </div>
 </div>
 
 <noscript><p class="noscript">Questa applicazione richiede JavaScript.</p></noscript>

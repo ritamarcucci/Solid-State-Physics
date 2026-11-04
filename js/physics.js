@@ -81,6 +81,9 @@ const Physics = (() => {
    *       Verifica: Σaᵢ + c ≈ Z (f a s = 0 conta tutti gli elettroni).
    * ------------------------------------------------------------------------- */
   const ELEMENTS = {
+    C:  { Z: 6,  zv: 4, A: 12.011,  cm: [2.3100, 20.8439, 1.0200, 10.2075, 1.5886, 0.5687, 0.8650, 51.6512, 0.2156] },
+    Be: { Z: 4,  zv: 2, A: 9.0122,  cm: [1.5919, 43.6427, 1.1278, 1.8623, 0.5391, 103.483, 0.7029, 0.5420, 0.0385] },
+    Bi: { Z: 83, zv: 5, A: 208.980, cm: [33.3689, 0.7040, 12.9510, 2.9238, 16.5877, 8.7937, 6.4692, 48.0093, 13.5782] },
     Na: { Z: 11, zv: 1, A: 22.990,  cm: [4.7626, 3.2850, 3.1736, 8.8422, 1.2674, 0.3136, 1.1128, 129.424, 0.6760] },
     Mg: { Z: 12, zv: 2, A: 24.305,  cm: [5.4204, 2.8275, 2.1735, 79.2611, 1.2269, 0.3808, 2.3073, 7.1937, 0.8584] },
     Al: { Z: 13, zv: 3, A: 26.982,  cm: [6.4202, 3.0387, 1.9002, 0.7426, 1.5936, 31.5472, 1.9646, 85.0886, 1.1151] },
@@ -123,7 +126,8 @@ const Physics = (() => {
     { id: 'fcc', label: 'Metalli CFC' },
     { id: 'bcc', label: 'Metalli CCC' },
     { id: 'semi', label: 'Semiconduttori' },
-    { id: 'other', label: 'Altri casi didattici' }
+    { id: 'other', label: 'Altri casi didattici' },
+    { id: 'semimetal', label: 'Semimetalli e materiali 2D' }
   ];
   const MATERIALS = {
     // ---- metalli CFC ----
@@ -137,16 +141,22 @@ const Physics = (() => {
     W:    { name: 'Tungsteno', group: 'bcc', species: ['W'],  structure: 'bcc', a: 3.165, rTab: 1.39, thetaD: 400, Tm: 3695, valence: 2 },
     Mo:   { name: 'Molibdeno', group: 'bcc', species: ['Mo'], structure: 'bcc', a: 3.147, rTab: 1.40, thetaD: 450, Tm: 2896, valence: 1 },
     // ---- semiconduttori ----
-    Si:   { name: 'Silicio',   group: 'semi', species: ['Si'], structure: 'diamond', a: 5.431, rTab: 1.175, thetaD: 645, Tm: 1687, valence: 4, epm: 'Si' },
-    Ge:   { name: 'Germanio',  group: 'semi', species: ['Ge'], structure: 'diamond', a: 5.658, rTab: 1.225, thetaD: 374, Tm: 1211, valence: 4, epm: 'Ge' },
+    Si:   { name: 'Silicio',   group: 'semi', species: ['Si'], structure: 'diamond', a: 5.431, rTab: 1.175, thetaD: 645, Tm: 1687, valence: 4, epm: 'Si', expGap: 1.12 },
+    Ge:   { name: 'Germanio',  group: 'semi', species: ['Ge'], structure: 'diamond', a: 5.658, rTab: 1.225, thetaD: 374, Tm: 1211, valence: 4, epm: 'Ge', expGap: 0.66 },
     // GaAs: Θ_D ≈ 344 K; rTab = media dei raggi covalenti di Ga e As
-    GaAs: { name: 'Arseniuro di gallio', group: 'semi', species: ['Ga', 'As'], structure: 'zincblende', a: 5.653, rTab: 1.22, thetaD: 344, Tm: 1511, valence: 4, epm: 'GaAs' },
+    GaAs: { name: 'Arseniuro di gallio', group: 'semi', species: ['Ga', 'As'], structure: 'zincblende', a: 5.653, rTab: 1.22, thetaD: 344, Tm: 1511, valence: 4, epm: 'GaAs', expGap: 1.42 },
     // ---- altri ----
     Na:   { name: 'Sodio (a 5 K)', group: 'other', species: ['Na'], structure: 'bcc', a: 4.225, rTab: 1.90, thetaD: 158, Tm: 371, valence: 1, pseudo: 'Na' },
     // α-Po: unico elemento cubico semplice. Θ_D non misurata in modo affidabile.
     Po:   { name: 'Polonio α', group: 'other', species: ['Po'], structure: 'sc', a: 3.359, rTab: 1.68, thetaD: null, Tm: 527, valence: 6 },
     // Mg è esagonale compatto: niente strumenti cubici, sì 1D e pseudopotenziale.
-    Mg:   { name: 'Magnesio (hcp)', group: 'other', species: ['Mg'], structure: 'hcp', a: 3.209, c: 5.211, rTab: 1.60, thetaD: 400, Tm: 923, valence: 2, pseudo: 'Mg' }
+    Mg:   { name: 'Magnesio (hcp)', group: 'other', species: ['Mg'], structure: 'hcp', a: 3.209, c: 5.211, rTab: 1.60, thetaD: 400, Tm: 923, valence: 2, pseudo: 'Mg' },
+    // Berillio: esagonale compatto con c/a = 1.568 (molto sotto l'ideale 1.633); Θ_D ≈ 1440 K (Kittel)
+    Be:   { name: 'Berillio (hcp)', group: 'other', species: ['Be'], structure: 'hcp', a: 2.2856, c: 3.5832, rTab: 1.12, thetaD: 1440, Tm: 1560, valence: 2 },
+    // Bismuto A7: romboedrico, 2 atomi/cella; costanti nella cella esagonale (a, c) e u = 0.234 (Kittel, Liu-Allen)
+    Bi:   { name: 'Bismuto', group: 'semimetal', species: ['Bi'], structure: 'rhombohedral', a: 4.546, c: 11.862, rTab: 1.56, thetaD: 119, Tm: 544, valence: 5 },
+    // Grafene: reticolo a nido d'ape, a = 2.46 Å (a_CC = 1.42 Å); Θ_D e fusione non definiti per il piano isolato
+    Graphene: { name: 'Grafene (2D)', group: 'semimetal', species: ['C'], structure: 'honeycomb', a: 2.46, rTab: 0.77, thetaD: null, Tm: null, valence: 4 }
   };
   // Campi derivati: formula, Z e massa medi (usati da Debye-Waller e normalizzazioni),
   // fattore di forma della prima specie (compatibilità), alias rMetal.
@@ -158,6 +168,8 @@ const Physics = (() => {
     m.A = els.reduce((s, e) => s + e.A, 0) / els.length;
     m.cm = els[0].cm;
     m.rMetal = m.rTab;
+    // carattere elettrico REALE (3D, sperimentale): non dipende dal modello 1D
+    m.character = m.group === 'semi' ? 'semiconduttore' : m.group === 'semimetal' ? 'semimetallo' : 'metallo';
   }
   const CUBIC = ['sc', 'bcc', 'fcc', 'diamond', 'zincblende'];
 
@@ -168,10 +180,13 @@ const Physics = (() => {
     const m = MATERIALS[key];
     switch (tool) {
       case 'lattice': case 'ewald': case 'powder':
-        return CUBIC.includes(m.structure) || 'reticolo esagonale';
+        return CUBIC.includes(m.structure) || ({ hcp: 'reticolo esagonale', rhombohedral: 'reticolo romboedrico (non cubico)', honeycomb: 'reticolo 2D a nido d\'ape' }[m.structure] || 'reticolo non cubico');
       case 'kp': case 'tb':
-        return true;
-      case 'pseudo': case 'bands3d':
+        return m.structure === 'rhombohedral' || m.structure === 'honeycomb' ? 'non è un cristallo 1D: usa Bande reali 3D' : true;
+      case 'pseudo':
+        return m.structure === 'rhombohedral' || m.structure === 'honeycomb' || key === 'Be'
+          ? 'senza parametri di empty core: usa Bande reali 3D' : true;
+      case 'bands3d':
         return true;   // sempre disponibili: dove mancano dati tabulati si usa un modello approssimato (segnalato a schermo)
       default: return true;
     }
@@ -927,9 +942,9 @@ const Physics = (() => {
 
   /** Punti ad alta simmetria della zona di Brillouin CFC, in unità di 2π/a. */
   const BZ = {
-    // CFC: L → Γ → X → U|K → Γ (U e K equivalenti: salto senza lunghezza)
-    fcc: { points: { L: [0.5, 0.5, 0.5], G: [0, 0, 0], X: [1, 0, 0], U: [1, 0.25, 0.25], K: [0.75, 0.75, 0] },
-           path: [['L', 'G', 'Λ'], ['G', 'X', 'Δ'], ['X', 'U', ''], ['K', 'G', 'Σ']] },
+    // CFC: L → Γ → X → W → K → Γ (percorso standard, continuo)
+    fcc: { points: { L: [0.5, 0.5, 0.5], G: [0, 0, 0], X: [1, 0, 0], W: [1, 0.5, 0], U: [1, 0.25, 0.25], K: [0.75, 0.75, 0] },
+           path: [['L', 'G', 'Λ'], ['G', 'X', 'Δ'], ['X', 'W', 'Z'], ['W', 'K', ''], ['K', 'G', 'Σ']] },
     // CCC: Γ → H → N → Γ → P → H
     bcc: { points: { G: [0, 0, 0], H: [0, 0, 1], N: [0.5, 0.5, 0], P: [0.5, 0.5, 0.5] },
            path: [['G', 'H', 'Δ'], ['H', 'N', 'G'], ['N', 'G', 'Σ'], ['G', 'P', 'Λ'], ['P', 'H', 'F']] },
@@ -1058,13 +1073,15 @@ const Physics = (() => {
     return ev.slice(0, nBands).map(x => x * RY);
   }
 
-  /** Struttura a bande lungo L-Γ-X-U|K-Γ.
+  /** Struttura a bande lungo il percorso standard (CFC: L-Γ-X-W-K-Γ).
    *  Restituisce x (ascissa del percorso), etichette dei punti, bande in eV
    *  con zero al massimo della banda di valenza (semiconduttori) o al livello
    *  di Fermi (Al), e l'analisi della gap. */
   function epmBands(matKey, { g2max = 19, step = 0.025, nBands } = {}) {
     // parametri: tabulati (Si, Ge, GaAs, Al) oppure modello semplificato dei metalli
     const mat = MATERIALS[matKey];
+    const nc = bandsNonCubic(matKey, { g2max });
+    if (nc) return nc;
     const P = mat && mat.epm ? Object.assign({ lattice: 'fcc' }, EPM[mat.epm]) : metalModel(matKey);
     const metal = !!(P.local || P.localFn);
     nBands = nBands || (metal ? 6 : 8);
@@ -1134,6 +1151,404 @@ const Physics = (() => {
     return { x: xs, ticks, seg, bands: bands.map(b => b.map(v => v - ref)), info, nG: Gs.length, P, lattice: P.lattice };
   }
 
+
+  /* ===========================================================================
+   * GEOMETRIA GENERALE, ZONA DI BRILLOUIN, BANDE NON CUBICHE
+   *  - crystalGeometry(key): vettori primitivi, reciproci, punti ad alta
+   *    simmetria (in Å⁻¹, coordinate cartesiane), percorso, e atomi/legami
+   *    della cella da disegnare (usato dalla vista 3D delle bande);
+   *  - brillouinZone(): cella di Wigner-Seitz del reticolo reciproco;
+   *  - hcp (Be, Mg): onde piane con pseudopotenziale locale;
+   *  - grafene: tight-binding π analitico;
+   *  - Bi: tight-binding sp³ con spin-orbita (reticolo romboedrico A7).
+   * ========================================================================= */
+  const V3 = {
+    dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2],
+    cross: (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]],
+    add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]],
+    sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]],
+    mul: (a, s) => [a[0] * s, a[1] * s, a[2] * s],
+    len: a => Math.hypot(a[0], a[1], a[2])
+  };
+  const frac2cart = (f, A) => [0, 1, 2].map(i => f[0] * A[0][i] + f[1] * A[1][i] + f[2] * A[2][i]);
+  function recipOf(a1, a2, a3) {
+    const f = 2 * Math.PI / V3.dot(a1, V3.cross(a2, a3));
+    return [V3.mul(V3.cross(a2, a3), f), V3.mul(V3.cross(a3, a1), f), V3.mul(V3.cross(a1, a2), f)];
+  }
+
+  /* Parametri strutturali dei materiali non cubici */
+  const BI_STRUCT = { a: 4.546, c: 11.862, u: 0.2340 };   // cella esagonale; atomi a ±u·c lungo l'asse trigonale
+  /* Bi: tight binding sp³ + spin-orbita, 3 gusci di vicini (3.07, 3.53, 4.54 Å), stile Liu & Allen, PRB 52, 1566 (1995).
+   * PROVENIENZA: i valori sono quelli ricordati dal lavoro originale; la Tabella II non è stata
+   * scaricabile (HTTP 403), quindi NON sono verificati riga per riga sul testo. Come validazione
+   * si sono usati tre dati sperimentali: sovrapposizione T–L (calcolo 36 meV, sperimentale ≈ 38 meV),
+   * gap diretta in L (14 meV, ≈ 15 meV) e densità di portatori (3.4×10¹⁷ cm⁻³, ≈ 3×10¹⁷ cm⁻³). */
+  const BI_TB = {            // eV
+    Es: -10.906, Ep: -0.486, xi: 1.0,
+    shells: [
+      { Vss: -0.608, Vsp: 1.320, Vps: 1.320, Vpp: 1.854, Vpi: -0.600 },
+      { Vss: -0.384, Vsp: 0.433, Vps: 0.433, Vpp: 1.396, Vpi: -0.344 },
+      { Vss: 0.0,    Vsp: 0.0,   Vps: 0.0,   Vpp: 0.156, Vpi: 0.0 }
+    ]
+  };
+  const GRAPHENE_TB = { t: 2.8, t2: 0.1 };     // eV: primi e secondi vicini (π)
+
+  /** Descrizione geometrica del cristallo per la vista 3D e per i calcoli. */
+  function crystalGeometry(key) {
+    const mat = MATERIALS[key], st = mat.structure;
+    const G = { key, structure: st, dim: 3, a: mat.a, atoms: [], cellEdges: [], bonds: true };
+    const box = (o, v) => {                              // spigoli di un parallelepipedo
+      const P = f => V3.add(o, frac2cart(f, v)), e = [];
+      for (const [p, q] of [[[0,0,0],[1,0,0]],[[0,1,0],[1,1,0]],[[0,0,1],[1,0,1]],[[0,1,1],[1,1,1]],
+        [[0,0,0],[0,1,0]],[[1,0,0],[1,1,0]],[[0,0,1],[0,1,1]],[[1,0,1],[1,1,1]],
+        [[0,0,0],[0,0,1]],[[1,0,0],[1,0,1]],[[0,1,0],[0,1,1]],[[1,1,0],[1,1,1]]]) e.push([P(p), P(q)]);
+      return e;
+    };
+    if (CUBIC.includes(st)) {
+      const a = mat.a, h = a / 2;
+      const lattice = (st === 'diamond' || st === 'zincblende') ? 'fcc' : st;
+      G.lattice = lattice;
+      G.a1 = lattice === 'fcc' ? [0, h, h] : lattice === 'bcc' ? [-h, h, h] : [a, 0, 0];
+      G.a2 = lattice === 'fcc' ? [h, 0, h] : lattice === 'bcc' ? [h, -h, h] : [0, a, 0];
+      G.a3 = lattice === 'fcc' ? [h, h, 0] : lattice === 'bcc' ? [h, h, -h] : [0, 0, a];
+      const pts = Object.assign({}, BZ[lattice].points);
+      if (lattice === 'fcc') pts.W = [1, 0.5, 0];
+      G.points = {};
+      for (const [k, v] of Object.entries(pts)) G.points[k] = V3.mul(v, 2 * Math.PI / a);
+      G.path = BZ[lattice].path;
+      G.atoms = cellSites(st).map(s => ({ p: V3.mul(s.p, a), species: s.species }));
+      G.cellEdges = box([0, 0, 0], [[a, 0, 0], [0, a, 0], [0, 0, a]]);
+      G.cellLabel = `cella cubica convenzionale, a = ${a} Å`;
+    } else if (st === 'hcp') {
+      const a = mat.a, c = mat.c, s3 = Math.sqrt(3);
+      G.a1 = [a, 0, 0]; G.a2 = [-a / 2, a * s3 / 2, 0]; G.a3 = [0, 0, c];
+      const B = recipOf(G.a1, G.a2, G.a3);
+      const A = V3.mul(B[2], 0.5), M = V3.mul(B[0], 0.5), K = V3.mul(V3.add(B[0], B[1]), 1 / 3);
+      G.points = { G: [0, 0, 0], M, K, A, L: V3.add(M, A), H: V3.add(K, A) };
+      G.path = [['G', 'M', 'Σ'], ['M', 'K', 'T'], ['K', 'G', 'Σ'], ['G', 'A', 'Δ'], ['A', 'L', 'U'], ['L', 'H', 'P'], ['H', 'A', 'R']];
+      // prisma esagonale: atomi a z = 0 (vertici + centro) e z = c/2 (tre atomi)
+      const sites = [[0, 0, 0], [1 / 3, 2 / 3, 0.5]];
+      for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) for (let k = 0; k <= 1; k++) sites.forEach((s, si) => {
+        const p = frac2cart([i + s[0], j + s[1], k + s[2]], [G.a1, G.a2, G.a3]);
+        if (p[2] > c + 1e-6 || p[2] < -1e-6) return;
+        if (Math.hypot(p[0], p[1]) <= a + 1e-6) G.atoms.push({ p, species: 0 });
+      });
+      const vx = [0, 1, 2, 3, 4, 5].map(i => [a * Math.cos(i * Math.PI / 3), a * Math.sin(i * Math.PI / 3)]);
+      for (let i = 0; i < 6; i++) {
+        const p = vx[i], q = vx[(i + 1) % 6];
+        G.cellEdges.push([[p[0], p[1], 0], [q[0], q[1], 0]], [[p[0], p[1], c], [q[0], q[1], c]], [[p[0], p[1], 0], [p[0], p[1], c]]);
+      }
+      G.cellLabel = `prisma esagonale, a = ${a} Å, c = ${c} Å (c/a = ${(c / a).toFixed(3)})`;
+    } else if (st === 'rhombohedral') {       // bismuto A7 (cella primitiva romboedrica)
+      const { a, c, u } = BI_STRUCT, s3 = Math.sqrt(3);
+      G.a1 = [-a / 2, -a / (2 * s3), c / 3]; G.a2 = [a / 2, -a / (2 * s3), c / 3]; G.a3 = [0, a / s3, c / 3];
+      const B = recipOf(G.a1, G.a2, G.a3);
+      const half = f => V3.mul(frac2cart(f, B), 0.5);
+      G.points = { G: [0, 0, 0], T: half([1, 1, 1]), L: half([1, 0, 0]), X: half([1, 1, 0]) };
+      G.path = [['T', 'G', 'Λ'], ['G', 'L', 'Σ'], ['L', 'X', ''], ['X', 'G', 'Δ']];
+      const A = [G.a1, G.a2, G.a3];
+      for (let i = -1; i <= 2; i++) for (let j = -1; j <= 2; j++) for (let k = -1; k <= 2; k++) for (const s of [1, -1]) {
+        const f = [i + s * u, j + s * u, k + s * u];
+        const inside = f.every(x => x > -1e-6 && x < 1 + 1e-6);
+        const near = f.every(x => x > -0.5 && x < 1.5);
+        if (near) G.atoms.push({ p: frac2cart(f, A), species: 0, ghost: !inside });
+      }
+      G.cellEdges = box([0, 0, 0], A);
+      G.cellLabel = `cella primitiva romboedrica (A7), 2 atomi; asse trigonale ∥ z (atomi a ±u·c, u = ${u})`;
+      G.bondMax = 3.3;
+    } else if (st === 'honeycomb') {          // grafene: piano xy
+      const a = mat.a, s3 = Math.sqrt(3);
+      G.dim = 2; G.a1 = [a, 0, 0]; G.a2 = [-a / 2, a * s3 / 2, 0]; G.a3 = [0, 0, 10];
+      const B = recipOf(G.a1, G.a2, G.a3);
+      G.points = { G: [0, 0, 0], M: V3.mul(B[0], 0.5), K: V3.mul(V3.add(B[0], B[1]), 1 / 3) };
+      G.path = [['G', 'M', 'Σ'], ['M', 'K', 'T'], ['K', 'G', 'Λ']];
+      for (let i = -1; i <= 2; i++) for (let j = -1; j <= 2; j++) for (const t of [[1 / 3, 2 / 3], [2 / 3, 1 / 3]]) {
+        G.atoms.push({ p: frac2cart([i + t[0], j + t[1], 0], [G.a1, G.a2, G.a3]), species: 0 });
+      }
+      G.cellEdges = [[[0, 0, 0], G.a1], [G.a1, V3.add(G.a1, G.a2)], [V3.add(G.a1, G.a2), G.a2], [G.a2, [0, 0, 0]]];
+      G.cellLabel = `piano di grafene, a = ${a} Å (a_CC = ${(a / s3).toFixed(3)} Å)`;
+      G.bondMax = a / s3 * 1.15;
+    }
+    G.recip = recipOf(G.a1, G.a2, G.a3);
+    // legami: coppie a distanza ≈ primi vicini
+    if (G.bonds) {
+      const pos = G.atoms.map(t => t.p);
+      let dmin = Infinity;
+      for (let i = 0; i < pos.length; i++) for (let j = i + 1; j < pos.length; j++) dmin = Math.min(dmin, V3.len(V3.sub(pos[i], pos[j])));
+      const lim = G.bondMax || dmin * 1.05;
+      G.bondList = [];
+      for (let i = 0; i < pos.length; i++) for (let j = i + 1; j < pos.length; j++) {
+        const d = V3.len(V3.sub(pos[i], pos[j]));
+        if (d < lim && d > 1e-6) G.bondList.push([i, j]);
+      }
+    }
+    return G;
+  }
+
+  /** Cella di Wigner-Seitz del reticolo reciproco (prima zona di Brillouin).
+   *  B: tre vettori reciproci cartesiani; dim = 2 → solo il piano xy.
+   *  Restituisce { vertices, edges } con edges = coppie di punti cartesiani. */
+  function brillouinZone(B, dim = 3) {
+    const Gs = [], R = 2;
+    for (let i = -R; i <= R; i++) for (let j = -R; j <= R; j++) for (let k = (dim === 2 ? 0 : -R); k <= (dim === 2 ? 0 : R); k++) {
+      if (!i && !j && !k) continue;
+      Gs.push(frac2cart([i, j, k], B));
+    }
+    const pl = Gs.map(g => { const l = V3.len(g); return { n: V3.mul(g, 1 / l), d: l / 2 }; });
+    const inside = x => pl.every(p => V3.dot(p.n, x) <= p.d + 1e-7);
+    const verts = [];
+    const push = x => { if (inside(x) && !verts.some(v => V3.len(V3.sub(v, x)) < 1e-6)) verts.push(x); };
+    if (dim === 2) {
+      for (let i = 0; i < pl.length; i++) for (let j = i + 1; j < pl.length; j++) {
+        const A = pl[i], C = pl[j], det = A.n[0] * C.n[1] - A.n[1] * C.n[0];
+        if (Math.abs(det) < 1e-9) continue;
+        push([(A.d * C.n[1] - C.d * A.n[1]) / det, (A.n[0] * C.d - C.n[0] * A.d) / det, 0]);
+      }
+      const cx = verts.reduce((s, v) => s + v[0], 0) / verts.length, cy = verts.reduce((s, v) => s + v[1], 0) / verts.length;
+      verts.sort((p, q) => Math.atan2(p[1] - cy, p[0] - cx) - Math.atan2(q[1] - cy, q[0] - cx));
+      return { vertices: verts, edges: verts.map((v, i) => [v, verts[(i + 1) % verts.length]]) };
+    }
+    for (let i = 0; i < pl.length; i++) for (let j = i + 1; j < pl.length; j++) {
+      const c = V3.cross(pl[i].n, pl[j].n);
+      if (V3.len(c) < 1e-9) continue;
+      for (let k = j + 1; k < pl.length; k++) {
+        const det = V3.dot(c, pl[k].n);
+        if (Math.abs(det) < 1e-9) continue;
+        const x = V3.mul(V3.add(V3.add(V3.mul(V3.cross(pl[j].n, pl[k].n), pl[i].d), V3.mul(V3.cross(pl[k].n, pl[i].n), pl[j].d)),
+          V3.mul(c, pl[k].d)), 1 / det);
+        push(x);
+      }
+    }
+    // bordi: per ogni piano, i vertici che vi giacciono, ordinati per angolo
+    const edges = [], seen = new Set();
+    for (const p of pl) {
+      const fv = verts.filter(v => Math.abs(V3.dot(p.n, v) - p.d) < 1e-6);
+      if (fv.length < 3) continue;
+      const cen = V3.mul(fv.reduce((s, v) => V3.add(s, v), [0, 0, 0]), 1 / fv.length);
+      const e1 = V3.sub(fv[0], cen), e2 = V3.cross(p.n, e1);
+      fv.sort((u, w) => Math.atan2(V3.dot(V3.sub(u, cen), e2), V3.dot(V3.sub(u, cen), e1)) - Math.atan2(V3.dot(V3.sub(w, cen), e2), V3.dot(V3.sub(w, cen), e1)));
+      for (let i = 0; i < fv.length; i++) {
+        const u = fv[i], w = fv[(i + 1) % fv.length];
+        const key = [u, w].map(v => v.map(x => Math.round(x * 1e4)).join(',')).sort().join('|');
+        if (!seen.has(key)) { seen.add(key); edges.push([u, w]); }
+      }
+    }
+    return { vertices: verts, edges };
+  }
+
+  /** Percorso spezzato nello spazio k (cartesiano, Å⁻¹): ascissa x, k, etichette dei punti. */
+  function buildKPath(points, path, nPerBZ) {
+    const lab = c => c === 'G' ? 'Γ' : c;
+    const xs = [], ks = [], ticks = [], seg = [];
+    let x = 0;
+    path.forEach(([A, Bp, name], si) => {
+      const pa = points[A], pb = points[Bp], len = V3.len(V3.sub(pb, pa));
+      const nseg = Math.max(4, Math.round(len * nPerBZ));
+      if (si === 0) ticks.push({ x, label: lab(A) });
+      else if (A !== path[si - 1][1]) ticks[ticks.length - 1].label += ',' + lab(A);
+      for (let i = (si === 0 ? 0 : 1); i <= nseg; i++) {
+        const t = i / nseg;
+        ks.push(V3.add(pa, V3.mul(V3.sub(pb, pa), t)));
+        xs.push(x + t * len); seg.push({ si, t, name, from: A, to: Bp });
+      }
+      x += len;
+      ticks.push({ x, label: lab(Bp) });
+    });
+    return { xs, ks, ticks, seg };
+  }
+  const labelOf = (seg, i) => {
+    const s = seg[i], near = (s.t < 1e-9 ? s.from : s.t > 1 - 1e-9 ? s.to : null);
+    if (near) return near === 'G' ? 'Γ' : near;
+    const f = s.from === 'G' ? 'Γ' : s.from, t = s.to === 'G' ? 'Γ' : s.to;
+    return `${s.name || f + t} (${(s.t * 100).toFixed(0)}% da ${f} a ${t})`;
+  };
+
+  /* ---- hcp (Be, Mg): onde piane, pseudopotenziale empty core schermato ---- */
+  function bandsHcp(matKey, { g2max = 19 } = {}) {
+    const mat = MATERIALS[matKey], el = ELEMENTS[mat.species[0]], Z = el.zv;
+    const geo = crystalGeometry(matKey), A = [geo.a1, geo.a2, geo.a3], B = geo.recip;
+    const Oc = Math.abs(V3.dot(geo.a1, V3.cross(geo.a2, geo.a3))), Oa = Oc / 2;
+    const kF = Math.cbrt(3 * Math.PI * Math.PI * Z / Oa), kTF2 = 4 * kF / (Math.PI * CONST.BOHR);
+    const rc = (EMPTY_CORE_RC[mat.species[0]] ? EMPTY_CORE_RC[mat.species[0]] : 0.4 * mat.rTab / CONST.BOHR) * CONST.BOHR;   // Å
+    const vAtom = q => -4 * Math.PI * Z * CONST.E2 / (Oa * (q * q + kTF2)) * Math.cos(q * rc);
+    // inversione al centro del legame: τ = ±(a1 − a2)/6 + c/4
+    const tau = V3.add(V3.mul(V3.sub(geo.a1, geo.a2), 1 / 6), V3.mul(geo.a3, 0.25));
+    // stesso numero di onde piane del caso cubico
+    const target = reciprocalGVectors('fcc', g2max).length;
+    const cand = [];
+    for (let i = -4; i <= 4; i++) for (let j = -4; j <= 4; j++) for (let k = -6; k <= 6; k++) {
+      const g = frac2cart([i, j, k], B); cand.push({ g, n2: V3.dot(g, g) });
+    }
+    cand.sort((p, q) => p.n2 - q.n2);
+    const Gs = cand.slice(0, target).map(c => c.g), n = Gs.length;
+    const Vtab = new Float64Array(n * n);
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      if (i === j) continue;
+      const q = V3.sub(Gs[i], Gs[j]);
+      Vtab[i * n + j] = vAtom(V3.len(q)) * Math.cos(V3.dot(q, tau));
+    }
+    const { xs, ks, ticks, seg } = buildKPath(geo.points, geo.path, 14);
+    const nB = 8, E = ks.map(k => {
+      const M = new Float64Array(Vtab);
+      for (let i = 0; i < n; i++) { const q = V3.add(k, Gs[i]); M[i * n + i] = CONST.HBAR2_2M * V3.dot(q, q); }
+      return symEigenvalues(M, n).slice(0, nB);
+    });
+    const bands = Array.from({ length: nB }, (_, b) => E.map(e => e[b]));
+    const EF = CONST.HBAR2_2M * kF * kF;             // elettrone libero: n = Z/Ω_a
+    const crossing = bands.filter(b => Math.min(...b) < EF && Math.max(...b) > EF).length;
+    const shells = [...new Set(Gs.map(g => Math.round(V3.len(g) * 100) / 100))].filter(q => q > 0.01).sort((p, q) => p - q).slice(0, 3)
+      .map(q => ({ label: `v<sub>atomo</sub>(q = ${q.toFixed(2)} Å⁻¹)`, V: vAtom(q), unit: 'eV' }));
+    const info = { metal: true, hex: true, EF: 0, kF, crossing, shells, approx: true, transition: false,
+      rc, note: 'Reticolo esagonale compatto vero (2 atomi per cella), potenziale locale.' };
+    return { x: xs, ticks, seg, bands: bands.map(b => b.map(v => v - EF)), info, nG: n, P: { zv: Z, a: mat.a }, lattice: 'hcp', geo };
+  }
+
+  /* ---- grafene: π di primi (t) e secondi (t') vicini ---- */
+  function bandsGraphene() {
+    const geo = crystalGeometry('Graphene'), { t, t2 } = GRAPHENE_TB;
+    const tauA = frac2cart([1 / 3, 2 / 3, 0], [geo.a1, geo.a2, geo.a3]);
+    const del = [[0, 0], [-1, 0], [0, 1]].map(([i, j]) =>
+      V3.sub(V3.add(frac2cart([2 / 3, 1 / 3, 0], [geo.a1, geo.a2, geo.a3]), V3.add(V3.mul(geo.a1, i), V3.mul(geo.a2, j))), tauA));
+    const sec = [geo.a1, geo.a2, V3.sub(geo.a1, geo.a2)];
+    const { xs, ks, ticks, seg } = buildKPath(geo.points, geo.path, 40);
+    const up = [], dn = [];
+    for (const k of ks) {
+      let re = 0, im = 0;
+      for (const d of del) { const ph = V3.dot(k, d); re += Math.cos(ph); im += Math.sin(ph); }
+      const f2 = re * re + im * im;
+      let g = 0;
+      for (const s of sec) g += 2 * Math.cos(V3.dot(k, s));          // Σ cos su 6 secondi vicini
+      const e2 = -t2 * g, f = Math.sqrt(f2);
+      up.push(t * f + e2);
+      dn.push(-t * f + e2);
+    }
+    // l'energia di Dirac (f = 0) vale e2(K); si porta a zero
+    const iK = ks.reduce((b, k, i) => (V3.len(V3.sub(k, geo.points.K)) < V3.len(V3.sub(ks[b], geo.points.K)) ? i : b), 0);
+    const ED = (up[iK] + dn[iK]) / 2;
+    const bands = [dn.map(v => v - ED), up.map(v => v - ED)];
+    const a_cc = geo.a / Math.sqrt(3);
+    const vF = 1.5 * a_cc * t * 1.602176634e-19 / 1.054571817e-34 * 1e-10;   // m/s
+    const iM = ks.reduce((b, k, i) => (V3.len(V3.sub(k, geo.points.M)) < V3.len(V3.sub(ks[b], geo.points.M)) ? i : b), 0);
+    const info = { metal: false, dirac: true, gap: 0, direct: true, t, t2, vF, a_cc, EM: bands[1][iM], iK, xK: xs[iK], xM: xs[iM],
+      vbm: { x: xs[iK], where: 'K (punto di Dirac)' }, cbm: { x: xs[iK], E: 0, where: 'K (punto di Dirac)' } };
+    return { x: xs, ticks, seg, bands, info, nG: 0, P: { zv: 4, filled: 1 }, lattice: 'honeycomb', geo };
+  }
+
+  /* ---- bismuto: tight-binding sp³ + spin-orbita sull'A7 vero ---- */
+  let _biCache = null;
+  function biModel() {
+    if (_biCache) return _biCache;
+    const geo = crystalGeometry('Bi'), A = [geo.a1, geo.a2, geo.a3];
+    const tau = [frac2cart([BI_STRUCT.u, BI_STRUCT.u, BI_STRUCT.u], A), frac2cart([-BI_STRUCT.u, -BI_STRUCT.u, -BI_STRUCT.u], A)];
+    // tutti i vettori atomo i → atomo j (con traslazione) fino al 3° guscio
+    const hops = [];
+    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) for (let x = -3; x <= 3; x++) for (let y = -3; y <= 3; y++) for (let z = -3; z <= 3; z++) {
+      const d = V3.add(V3.sub(tau[j], tau[i]), frac2cart([x, y, z], A)), L = V3.len(d);
+      if (L > 1e-6 && L < 4.8) hops.push({ i, j, d, L });
+    }
+    // gusci per distanza: 1° ≈ 3.07 (A→B), 2° ≈ 3.53 (A→B), 3° ≈ 4.54 (A→A, stessa sottoreticolo)
+    const Ls = [...new Set(hops.map(h => Math.round(h.L * 50) / 50))].sort((p, q) => p - q);
+    hops.forEach(h => { h.shell = Ls.findIndex(l => Math.abs(l - Math.round(h.L * 50) / 50) < 1e-9); });
+    _biCache = { geo, hops, Ls };
+    return _biCache;
+  }
+  /** Autovalori (8 bande distinte, doppiamente degeneri per Kramers) in k cartesiano [Å⁻¹]. */
+  function biEigen(m, k, TB) {
+    const N = 16, Hr = new Float64Array(N * N), Hi = new Float64Array(N * N);
+    const add = (r, c, re, im) => { Hr[r * N + c] += re; Hi[r * N + c] += im; };
+    for (const h of m.hops) {
+      const sh = TB.shells[h.shell]; if (!sh) continue;
+      const c = [h.d[0] / h.L, h.d[1] / h.L, h.d[2] / h.L], ph = V3.dot(k, h.d), cr = Math.cos(ph), ci = Math.sin(ph);
+      const T = [[sh.Vss, c[0] * sh.Vsp, c[1] * sh.Vsp, c[2] * sh.Vsp]];
+      for (let a = 0; a < 3; a++) {
+        const row = [-c[a] * sh.Vps];
+        for (let b = 0; b < 3; b++) row.push(c[a] * c[b] * (sh.Vpp - sh.Vpi) + (a === b ? sh.Vpi : 0));
+        T.push(row);
+      }
+      for (let o = 0; o < 4; o++) for (let p = 0; p < 4; p++) for (let s = 0; s < 2; s++) {
+        const r = s * 8 + h.i * 4 + o, cc = s * 8 + h.j * 4 + p;
+        add(r, cc, T[o][p] * cr, T[o][p] * ci);
+      }
+    }
+    for (let at = 0; at < 2; at++) for (let s = 0; s < 2; s++) {
+      add(s * 8 + at * 4, s * 8 + at * 4, TB.Es, 0);
+      for (let p = 1; p < 4; p++) add(s * 8 + at * 4 + p, s * 8 + at * 4 + p, TB.Ep, 0);
+    }
+    // spin-orbita ξ L·S sugli orbitali p (base x, y, z)
+    const h2 = TB.xi / 2;
+    for (let at = 0; at < 2; at++) {
+      const o = at * 4 + 1;                                     // indice di p_x
+      const Lz = [[0, -1, 0], [1, 0, 0], [0, 0, 0]];            // parte immaginaria: L_z = i·Lz
+      // elementi (parte immaginaria) di L_x, L_y, L_z
+      const imLx = [[0, 0, 0], [0, 0, -1], [0, 1, 0]], imLy = [[0, 0, 1], [0, 0, 0], [-1, 0, 0]], imLz = Lz;
+      for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) {
+        // up-up: +L_z/2·ξ ; down-down: −L_z/2·ξ ; up-down: (L_x − i L_y)ξ/2 ; down-up: (L_x + i L_y)ξ/2
+        add(o + a, o + b, 0, h2 * imLz[a][b]);
+        add(8 + o + a, 8 + o + b, 0, -h2 * imLz[a][b]);
+        // L_x = i·imLx ; −i·L_y = −i·(i·imLy) = imLy
+        add(o + a, 8 + o + b, h2 * imLy[a][b], h2 * imLx[a][b]);
+        // L_x + i L_y = i·imLx − imLy
+        add(8 + o + a, o + b, -h2 * imLy[a][b], h2 * imLx[a][b]);
+      }
+    }
+    // H = A + iB → [[A, −B], [B, A]]
+    const M = new Float64Array(4 * N * N), W = 2 * N;
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      const re = Hr[r * N + c], im = Hi[r * N + c];
+      M[r * W + c] = re; M[(r + N) * W + c + N] = re;
+      M[r * W + c + N] = -im; M[(r + N) * W + c] = im;
+    }
+    const ev = symEigenvalues(M, W), out = [];
+    for (let b = 0; b < 8; b++) out.push((ev[4 * b] + ev[4 * b + 1] + ev[4 * b + 2] + ev[4 * b + 3]) / 4);
+    return out;
+  }
+  function bandsBi() {
+    const m = biModel(), TB = BI_TB, geo = m.geo;
+    const { xs, ks, ticks, seg } = buildKPath(geo.points, geo.path, 16);
+    const E = ks.map(k => biEigen(m, k, TB));
+    // livello di Fermi per neutralità di carica: 10 e⁻/cella = 5 bande piene (2 posti ciascuna).
+    // Le tasche sono minuscole: si campionano finemente solo gli intorni di T (lacune) e L (elettroni).
+    const nF = 5, Bv = geo.recip, pockets = [];
+    const sampleBox = (c0, w, n) => {
+      const out = [];
+      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) for (let l = 0; l < n; l++) {
+        const f = [(i / (n - 1) - .5) * 2 * w, (j / (n - 1) - .5) * 2 * w, (l / (n - 1) - .5) * 2 * w];
+        const k = V3.add(c0, frac2cart(f, Bv)); out.push(biEigen(m, k, TB));
+      }
+      return out;
+    };
+    const nS = 13, w = 0.05;
+    const Tpts = sampleBox(geo.points.T, w, nS), Lpts = sampleBox(geo.points.L, w, nS);
+    const vol = Math.pow(2 * w, 3) / (nS * nS * nS);        // frazione di zona per punto
+    const countHoles = e => Tpts.reduce((s, ev) => s + (ev[nF - 1] > e ? 1 : 0), 0) * vol;
+    const countElec = e => 3 * Lpts.reduce((s, ev) => s + (ev[nF] < e ? 1 : 0), 0) * vol;
+    let lo = -1, hi = 1;
+    for (let it = 0; it < 50; it++) { const mid = (lo + hi) / 2; (countElec(mid) - countHoles(mid) > 0 ? hi = mid : lo = mid); }
+    const EF = (lo + hi) / 2;
+    const bands = Array.from({ length: 8 }, (_, b) => E.map(e => e[b] - EF));
+    // estremi: top banda 5ª (index 4) ovunque, fondo 6ª (index 5)
+    const topV = Math.max(...bands[nF - 1]), botC = Math.min(...bands[nF]);
+    const iT = bands[nF - 1].indexOf(topV), iL = bands[nF].indexOf(botC);
+    const mid = geo.points;
+    const eT = biEigen(m, mid.T, TB), eL = biEigen(m, mid.L, TB);
+    const info = { metal: false, semimetal: true, EF: 0, overlap: topV - botC, Eh: topV, Ee: botC,
+      EhAt: labelOf(seg, iT), EeAt: labelOf(seg, iL), gapL: eL[nF] - eL[nF - 1], gapT: eT[nF] - eT[nF - 1],
+      nHoles: countHoles(EF), nElec: countElec(EF), shellDist: m.Ls.slice(0, 3),
+      // densità di portatori (2 spin) in cm⁻³: stima grossolana, limitata dalla griglia fine attorno a T e L
+      nCm3: 2 * 0.5 * (countHoles(EF) + countElec(EF)) / (Math.abs(V3.dot(geo.a1, V3.cross(geo.a2, geo.a3))) * 1e-24),
+      vbm: { x: xs[iT], where: labelOf(seg, iT) }, cbm: { x: xs[iL], E: botC, where: labelOf(seg, iL) } };
+    return { x: xs, ticks, seg, bands, info, nG: 0, P: { zv: 5, filled: 5 }, lattice: 'rhombohedral', geo };
+  }
+
+  /** Bande dei materiali non cubici; null se il materiale è cubico. */
+  function bandsNonCubic(matKey, opt) {
+    const st = MATERIALS[matKey].structure;
+    if (st === 'hcp') return bandsHcp(matKey, opt);
+    if (st === 'honeycomb') return bandsGraphene();
+    if (st === 'rhombohedral') return bandsBi();
+    return null;
+  }
+
   return {
     CONST, WAVELENGTHS, STRUCTURES, ELEMENTS, MATERIALS, MATERIAL_GROUPS, PSEUDO_ATOMS, EPM,
     supports, nearestNeighbor,
@@ -1142,7 +1557,8 @@ const Physics = (() => {
     debyeWallerB, laueNodes, powderPattern,
     kpRHS, kpBands, freeElectronFolded, kpFermi, extendedK,
     harrisonT, tbMono, tbDiatomic, tbBandsVsA, phononMono, phononDiatomic,
-    pseudoSystem, pseudoAtom, epmBands, metalModel, symEigenvalues
+    pseudoSystem, pseudoAtom, epmBands, metalModel, symEigenvalues,
+    crystalGeometry, brillouinZone, bandsNonCubic, biEigen, biModel, BI_TB, GRAPHENE_TB
   };
 })();
 

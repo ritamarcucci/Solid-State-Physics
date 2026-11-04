@@ -223,6 +223,127 @@ const Visuals = (() => {
   }
 
   /* --------------------------------------------------------------------------
+   *  2.4 — Struttura cristallina e zona di Brillouin (vista 3D generica)
+   *  Funziona per qualunque cristallo descritto da Physics.crystalGeometry:
+   *  cubico, esagonale compatto, romboedrico, piano 2D.
+   * ------------------------------------------------------------------------ */
+  /** Etichetta di testo come sprite che guarda sempre la camera. */
+  function textSprite(text, color, height) {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 128;
+    const x = c.getContext('2d');
+    x.font = '600 84px Inter, system-ui, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.lineWidth = 12; x.strokeStyle = 'rgba(5,7,15,.9)'; x.strokeText(text, 128, 66);
+    x.fillStyle = color; x.fillText(text, 128, 66);
+    const tex = new THREE.CanvasTexture(c);
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+    s.scale.set(height * 2, height, 1); s.renderOrder = 10;
+    return s;
+  }
+
+  class StructureView extends ThreeView {
+    constructor(host) {
+      super(host, { pos: [2.6, 2.0, 3.6] });
+      this.controls.enablePan = false; this.controls.minDistance = 2; this.controls.maxDistance = 12;
+      this.content = new THREE.Group(); this.scene.add(this.content);
+      this.autoSpin = true;
+      this.controls.addEventListener('start', () => { this.autoSpin = false; this.touched = true; });
+      this.onFrame = () => { if (this.autoSpin) this.content.rotation.y += 0.004; };
+    }
+    resize() {
+      super.resize();
+      if (this.k && !this.touched) this.fitCamera();     // la scena deve stare sempre intera nel riquadro
+    }
+    /** Distanza della camera tale che la sfera di raggio 1.7 (il contenuto) entri nel riquadro, anche se stretto. */
+    fitCamera() {
+      const v = this.camera.fov * Math.PI / 360, half = Math.min(v, Math.atan(Math.tan(v) * this.camera.aspect));
+      const d = 1.85 / Math.sin(half);
+      this.camera.position.copy(this.camera.position.clone().normalize().multiplyScalar(d));
+      this.controls.minDistance = d * 0.45; this.controls.maxDistance = d * 3;
+      this.controls.update();
+    }
+    clear() {
+      this.content.traverse(o => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); }
+      });
+      this.content.clear();
+      this.content.rotation.set(0, 0, 0);
+    }
+    /** Centra e scala il contenuto in una sfera di raggio ~1.6. */
+    frame(pts) {
+      // z del cristallo (asse c / trigonale) → verso l'alto della scena; il piano xy diventa orizzontale
+      const mp = p => [p[0], p[2], -p[1]];
+      const box = new THREE.Box3();
+      pts.forEach(p => box.expandByPoint(new THREE.Vector3(...mp(p))));
+      const c = box.getCenter(new THREE.Vector3()), r = Math.max(box.getSize(new THREE.Vector3()).length() / 2, 1e-6);
+      this.k = 1.7 / r;
+      this.pos = p => { const q = mp(p); return new THREE.Vector3((q[0] - c.x) * this.k, (q[1] - c.y) * this.k, (q[2] - c.z) * this.k); };
+    }
+    line(pairs, color, opacity = 1) {
+      const g = new THREE.BufferGeometry(), v = [];
+      pairs.forEach(([a, b]) => { const A = this.pos(a), B = this.pos(b); v.push(A.x, A.y, A.z, B.x, B.y, B.z); });
+      g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+      this.content.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color, transparent: opacity < 1, opacity })));
+    }
+    tube(a, b, radius, color) {
+      const A = this.pos(a), B = this.pos(b);
+      this.content.add(rod([A.x, A.y, A.z], [B.x, B.y, B.z], radius, new THREE.MeshBasicMaterial({ color })));
+    }
+    ball(p, radius, color, opacity = 1) {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(radius, 24, 16),
+        new THREE.MeshStandardMaterial({ color, roughness: .35, metalness: .15, transparent: opacity < 1, opacity }));
+      m.position.copy(this.pos(p)); this.content.add(m); return m;
+    }
+    /** Cristallo nello spazio reale: cella, atomi, legami. */
+    showReal(geo) {
+      this.clear();
+      const pts = geo.cellEdges.flat().concat(geo.atoms.filter(a => !a.ghost).map(a => a.p));
+      this.frame(pts);
+      const pos = geo.atoms.map(a => a.p);
+      let dmin = Infinity;
+      for (let i = 0; i < pos.length; i++) for (let j = i + 1; j < pos.length; j++) {
+        const d = Math.hypot(pos[i][0] - pos[j][0], pos[i][1] - pos[j][1], pos[i][2] - pos[j][2]);
+        if (d > 1e-6) dmin = Math.min(dmin, d);
+      }
+      const rA = 0.27 * dmin * this.k;
+      this.line(geo.cellEdges, new THREE.Color(COLORS['line-2']).offsetHSL(0, 0, .25).getHex());
+      (geo.bondList || []).forEach(([i, j]) => this.tube(pos[i], pos[j], 0.025, 0x5b6b95));
+      geo.atoms.forEach(a => this.ball(a.p, rA, a.species ? COLORS['accent-3'] : COLORS['accent-2'], a.ghost ? 0.3 : 0.95));
+      this.view = 'real';
+      this.camera.position.set(2.6, 2.0, 3.6);
+      this.touched = false; this.fitCamera();
+    }
+    /** Prima zona di Brillouin, punti ad alta simmetria e percorso delle bande. */
+    showBZ(geo) {
+      this.clear();
+      if (!geo.bz) geo.bz = Physics.brillouinZone(geo.recip, geo.dim);
+      const bz = geo.bz;
+      this.frame(bz.vertices);
+      this.line(bz.edges, new THREE.Color(COLORS['accent-2']).getHex(), 0.85);
+      const rP = 0.055;
+      // percorso (tubi ambra) + nome della direzione a metà segmento
+      geo.path.forEach(([A, B, name]) => {
+        this.tube(geo.points[A], geo.points[B], 0.022, new THREE.Color(COLORS.accent).getHex());
+        if (name) {
+          const m = geo.points[A].map((v, i) => (v + geo.points[B][i]) / 2);
+          const s = textSprite(name, COLORS.muted, 0.2); s.position.copy(this.pos(m)).add(new THREE.Vector3(0, 0.1, 0)); this.content.add(s);
+        }
+      });
+      const done = new Set();
+      for (const [lab, p] of Object.entries(geo.points)) {
+        if (!geo.path.some(([A, B]) => A === lab || B === lab) || done.has(lab)) continue;
+        done.add(lab);
+        this.ball(p, rP, COLORS.accent, 1);
+        const s = textSprite(lab === 'G' ? 'Γ' : lab, '#ffffff', 0.34);
+        s.position.copy(this.pos(p)).add(new THREE.Vector3(0.1, 0.17, 0)); this.content.add(s);
+      }
+      this.view = 'bz';
+      this.camera.position.set(2.6, geo.dim === 2 ? 3.2 : 2.0, 3.6);
+      this.touched = false; this.fitCamera();
+    }
+  }
+
+  /* --------------------------------------------------------------------------
    *  1.2 — Spazio reale, spazio reciproco, rivelatore
    * ------------------------------------------------------------------------ */
   class EwaldViews {
@@ -742,7 +863,7 @@ const Visuals = (() => {
 
   return {
     COLORS, loadColors, initCharts, setActive,
-    ThreeView, LatticeView, EwaldViews,
+    ThreeView, LatticeView, StructureView, EwaldViews,
     makeChart, makeBandChart, line
   };
 })();

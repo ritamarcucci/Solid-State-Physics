@@ -26,6 +26,8 @@ poi apri http://localhost:8000
 3. Framework preset: **Other**, nessun build command, output directory: la radice.
 
 ## Fonti dei dati
+- Bismuto (bande 3D): tight binding sp³ con spin-orbita sull'A7 nello stile di Liu & Allen, PRB 52, 1566 (1995); parametri non verificati sulla tabella originale, validati su sovrapposizione T–L, gap in L e densità di portatori sperimentali
+- Grafene (bande 3D): π di primi e secondi vicini, t = 2.8 eV, t′ = 0.1 eV (valori standard della letteratura)
 - Costanti reticolari, temperature di Debye: Kittel, *Introduction to Solid State Physics*
 - Elettroni di valenza: Ashcroft & Mermin, Tab. 1.1
 - Fattori di forma atomici (Cromer-Mann): *International Tables for Crystallography* Vol. C, Tab. 6.1.1.4
