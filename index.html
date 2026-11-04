@@ -21,7 +21,7 @@
   <!-- Font sans-serif moderno -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 
   <!-- Foglio di stile del progetto (percorso relativo: index.html deve stare
        nella radice del sito, accanto alle cartelle css/ e js/) -->
@@ -66,6 +66,7 @@
   <script defer src="js/physics.js" onerror="window.__loadErrors.push('js/physics.js')"></script>
   <script defer src="js/visuals.js" onerror="window.__loadErrors.push('js/visuals.js')"></script>
   <script defer src="js/main.js" onerror="window.__loadErrors.push('js/main.js')"></script>
+  <script defer src="js/home-fx.js" onerror="window.__loadErrors.push('js/home-fx.js')"></script>
 </head>
 <body>
 
@@ -76,12 +77,30 @@
      VISTA 1 — HOME (l'unica visibile all'avvio)
      ===================================================================== -->
 <main id="view-home" class="view active" aria-label="Home">
-  <header class="home-head">
-    <p class="eyebrow">Laboratorio virtuale · Fisica dello Stato Solido</p>
-    <h1>Solid State <span class="accent">Lab</span></h1>
-    <p class="lead">Dal reticolo cristallino alla struttura a bande: sei strumenti interattivi basati sulle equazioni reali e su parametri tabulati di materiali veri.</p>
-  </header>
+  <section class="hero">
+    <canvas id="hero-lattice" aria-hidden="true"></canvas>
+    <header class="home-head">
+      <p class="pill"><b></b> 7 strumenti interattivi · equazioni reali</p>
+      <h1>Guarda dentro <span class="accent">la materia.</span></h1>
+      <p class="lead">Dal reticolo cristallino alla struttura a bande: un laboratorio virtuale costruito su costanti tabulate di materiali veri, non su animazioni di facciata.</p>
+      <div class="cta"><button type="button" class="btn-cta" id="btn-explore">Esplora i moduli →</button></div>
+    </header>
+    <div class="scroll-hint">scorri</div>
+  </section>
 
+  <div class="stats">
+    <div class="stat"><b class="grad" data-to="2">0</b><span>Moduli</span></div>
+    <div class="stat"><b class="grad" data-to="7">0</b><span>Strumenti</span></div>
+    <div class="stat"><b class="grad" data-to="5">0</b><span>Reticoli cristallini</span></div>
+    <div class="stat"><b class="grad" data-to="0">0</b><span>Build · npm · server</span></div>
+  </div>
+
+  <div class="modules" id="home-modules">
+    <div class="s-head reveal">
+      <span class="eyebrow">Due percorsi</span>
+      <h2>Dalla simmetria all'<span class="grad">energia.</span></h2>
+      <p>Ogni modulo è un viaggio guidato: ruoti, digiti un valore o sposti uno slider, e la fisica risponde in tempo reale.</p>
+    </div>
   <section class="cards" aria-label="Moduli">
     <button type="button" class="module-card" data-module="cryst">
       <div class="card-art" aria-hidden="true">
@@ -122,6 +141,7 @@
       </div>
     </button>
   </section>
+  </div>
 
   <footer class="home-foot">Dati: Kittel · Ashcroft &amp; Mermin · International Tables for Crystallography Vol. C · Harrison</footer>
 </main>

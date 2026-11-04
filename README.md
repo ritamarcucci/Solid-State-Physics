@@ -9,6 +9,7 @@ index.html        struttura della SPA e testi di teoria
 css/style.css     tema, layout (sidebar + 2/3 grafica + 1/3 controlli), animazioni
 js/physics.js     costanti, database materiali, tutte le equazioni (testabile con Node)
 js/visuals.js     scene Three.js, grafici Chart.js, rivelatore Canvas 2D
+js/home-fx.js     effetti della Home (reticolo 3D hero, reveal, contatori); vedi design/design.md
 js/main.js        navigazione con hash (#/cryst/lattice …) e controller degli strumenti
 ```
 
