@@ -359,7 +359,7 @@ code { font-family: var(--font-mono); font-size: .92em; }
    infinita del grafico a ogni ridimensionamento). */
 .chart-host canvas { display: block; position: absolute; left: 10px; top: 10px; }
 .chart-host.grow { flex: 1; }
-.chart-host.mini { flex: 0 0 130px; }
+.chart-host.mini { flex: 0 0 170px; }
 
 .chart-row {
   flex: 1; min-height: 0;
@@ -427,13 +427,20 @@ code { font-family: var(--font-mono); font-size: .92em; }
 
 /* ---- tabella picchi (polveri) ---- */
 .table-wrap {
-  flex: 0 0 auto; max-height: 160px; overflow: auto;
+  flex: 0 0 auto; max-height: 190px; overflow: auto; -webkit-overflow-scrolling: touch;
   border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--panel);
 }
-.peaks { width: 100%; border-collapse: collapse; font: 12.5px var(--font-mono); }
+.peaks { width: 100%; border-collapse: separate; border-spacing: 0; font: 12.5px var(--font-mono); font-variant-numeric: tabular-nums; }
 .peaks th, .peaks td { padding: 5px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
-.peaks th { position: sticky; top: 0; background: var(--panel-2); color: var(--muted); font-weight: 600; }
-.peaks td:first-child, .peaks th:first-child { text-align: left; }
+.peaks th { position: sticky; top: 0; z-index: 1; background: var(--panel-2); color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--line-2); }
+.peaks td:first-child, .peaks th:first-child { text-align: left; color: var(--text); font-weight: 600; }
+.peaks tbody tr:nth-child(even) td { background-color: rgba(255, 255, 255, .025); }
+.peaks tbody tr:hover td { background-color: rgba(79, 209, 197, .08); }
+.peaks tr.top td:first-child { color: var(--accent); }
+.peaks tr.zero td { color: var(--faint); }
+.peaks td.ibar { min-width: 74px; }
+.peaks th small { font-weight: 400; opacity: .8; }
 
 /* =============================================================================
  *  COLONNA CONTROLLI (1/3)
@@ -684,6 +691,39 @@ mjx-container[display="true"] { margin: .4em 0 !important; overflow-x: auto; ove
   body.sheet-open { overflow: hidden; }
   body.sheet-open .theory-fab { display: none; }     /* la scheda ha già la sua X */
   .num-input { flex-basis: 70px; width: 70px; }
+
+  /* intestazione compatta: tasto Home e titolo del modulo su meno righe, schede senza barra di scorrimento */
+  #sidebar { padding: 10px 12px 6px; }
+  .btn-home { width: auto; padding: 7px 12px; font-size: 13px; }
+  .side-title { padding: 8px 4px 6px; }
+  .side-title .eyebrow { display: none; }
+  .side-title h2 { font-size: 17px; }
+  /* tabella hkl: 7 colonne dentro 340 px, senza tagliare l'ultima */
+  .table-wrap { max-height: 230px; }
+  .peaks { font-size: 11px; }
+  .peaks th, .peaks td { padding: 4px 6px; }
+  .peaks td.ibar { min-width: 0; }
+  #side-nav { scrollbar-width: none; gap: 6px; padding-bottom: 4px; -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent); }
+  #side-nav::-webkit-scrollbar { display: none; }
+  .nav-item { padding: 8px 12px 8px 8px; }
+  .nav-item b { font-size: 13.5px; white-space: nowrap; }
+
+  /* il grafico resta visibile mentre si scorrono i controlli (strumenti con un solo grafico) */
+  #tool-lattice .viz-pane, #tool-kp .viz-pane, #tool-pseudo .viz-pane {
+    position: sticky; top: 0; z-index: 6; height: 52vh; padding: 10px 12px;
+    background: var(--bg); border-bottom: 1px solid var(--line-2);
+    box-shadow: 0 14px 24px -14px rgba(0, 0, 0, .8);
+  }
+  #tool-lattice .chart-host.grow, #tool-kp .chart-host.grow, #tool-pseudo .chart-host.grow { min-height: 0; }
+  #tool-kp .viz-pane, #tool-pseudo .viz-pane { height: 66vh; }
+  #tool-kp .chart-host.mini, #tool-pseudo .chart-host.mini { flex-basis: 118px; }
+  #tool-kp .viz-pane, #tool-pseudo .viz-pane { gap: 8px; }
+  .viz-head h3 { font-size: 16px; }
+  .badge { font-size: 11.5px; padding: 4px 9px; }
+
+  /* home */
+  .pill { font-size: 11.5px; padding: 6px 12px; margin-bottom: 20px; }
+  .hero { padding-top: 70px; padding-bottom: 80px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }

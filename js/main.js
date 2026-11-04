@@ -648,9 +648,16 @@ Tools.powder = {
     };
     this.chart.update('none');
 
-    // tabella riflessioni
-    $('pw-table').innerHTML = '<tr><th>hkl</th><th>2θ (°)</th><th>d (Å)</th><th>m</th><th>|F|²</th><th>e^(−2Bs²)</th><th>I rel.</th></tr>' +
-      res.peaks.map(p => `<tr><td>(${p.h}${p.k}${p.l})</td><td>${fmt(p.tt, 2)}</td><td>${fmt(p.d, 4)}</td><td>${p.m}</td><td>${fmt(p.F2, 0)}</td><td>${fmt(p.DW, 3)}</td><td>${fmt(p.Irel, 1)}</td></tr>`).join('');
+    // tabella riflessioni: indici con spazio se ≥ 10 o negativi, barra dell'intensità, riga più intensa in evidenza
+    const hkl = p => [p.h, p.k, p.l].some(v => v < 0 || v > 9) ? `(${p.h} ${p.k} ${p.l})` : `(${p.h}${p.k}${p.l})`;
+    const Imax = Math.max(...res.peaks.map(p => p.Irel), 0);
+    $('pw-table').innerHTML = '<thead><tr><th>hkl</th><th>2θ <small>°</small></th><th>d <small>Å</small></th><th>m</th><th>|F|²</th><th title="fattore di Debye-Waller e^(−2Bs²)">DW</th><th title="intensità relativa">I %</th></tr></thead><tbody>' +
+      res.peaks.map(p => {
+        const w = Math.max(0, Math.min(100, p.Irel));
+        const cls = p.Irel >= Imax - 1e-9 && Imax > 0 ? 'top' : (p.Irel < 0.05 ? 'zero' : '');
+        return `<tr class="${cls}"><td>${hkl(p)}</td><td>${fmt(p.tt, 2)}</td><td>${fmt(p.d, 4)}</td><td>${p.m}</td><td>${fmt(p.F2, 0)}</td><td>${fmt(p.DW, 3)}</td>` +
+          `<td class="ibar" style="background:linear-gradient(90deg,rgba(255,181,71,.30) ${w}%,transparent ${w}%)">${fmt(p.Irel, 1)}</td></tr>`;
+      }).join('') + '</tbody>';
 
     // verifica: dalla FWHM del picco più intenso si ricava L con Scherrer
     const best = res.peaks.reduce((a, b) => (b.I > (a?.I ?? -1) ? b : a), null);
@@ -755,14 +762,30 @@ Tools.kp = {
     this.chart.update('none');
 
     // potenziale V(x) su tre celle
-    const vp = [];
-    for (let c = -1; c <= 1; c++) {
-      const x0 = c * a;
-      vp.push({ x: x0, y: 0 }, { x: x0 + a - bf * a, y: 0 }, { x: x0 + a - bf * a, y: V0 }, { x: x0 + a, y: V0 }, { x: x0 + a, y: 0 });
+    // 4 celle (da −a a 3a): buche a V = 0 (ambra tenue) e barriere di altezza V₀ e larghezza b·a (viola pieno)
+    const vp = [], wells = [];
+    for (let c = -1; c <= 2; c++) {
+      const x0 = c * a, xb = x0 + a - bf * a;
+      vp.push({ x: x0, y: 0 }, { x: xb, y: 0 }, { x: xb, y: V0 }, { x: x0 + a, y: V0 }, { x: x0 + a, y: 0 });
     }
-    this.pot.data.datasets = [Visuals.line(vp, C['accent-3'], { width: 1.8, fill: 'origin', fillColor: 'rgba(157,140,255,.15)' })];
-    this.pot.options.scales.y.min = 0; this.pot.options.scales.y.max = Math.max(1, V0 * 1.2);
-    this.pot.options.scales.x.min = -a; this.pot.options.scales.x.max = 2 * a;
+    const top = Math.max(V0, 0.5);
+    this.pot.data.datasets = [Visuals.line(vp, C['accent-3'], { width: 2.4, fill: 'origin', fillColor: 'rgba(157,140,255,.38)' })];
+    const sx = this.pot.options.scales.x, sy = this.pot.options.scales.y;
+    sy.min = -top * 0.08; sy.max = top * 1.55;
+    sx.min = -a; sx.max = 3 * a;
+    // ascisse in multipli del passo (−a, 0, a, 2a, 3a) e ordinate solo 0 e V₀: meno rumore, più lettura
+    sx.afterBuildTicks = ax => { ax.ticks = [-1, 0, 1, 2, 3].map(n => ({ value: n * a })); };
+    sx.ticks = Object.assign(sx.ticks || {}, { callback: v => { const n = Math.round(v / a); return n === 0 ? '0' : Math.abs(n) === 1 ? (n < 0 ? '−a' : 'a') : `${n}a`; } });
+    sy.afterBuildTicks = ay => { ay.ticks = V0 > 0 ? [{ value: 0 }, { value: V0 }] : [{ value: 0 }]; };
+    sy.ticks = Object.assign(sy.ticks || {}, { callback: v => (v === 0 ? '0' : `V₀=${fmt(v, 2)}`) });
+    this.pot.options.plugins.overlays = {
+      hLines: V0 > 0 ? [{ y: V0, color: 'rgba(157,140,255,.45)', dash: [3, 4], width: 1 }] : [],
+      vLines: [-1, 0, 1, 2, 3].map(n => ({ x: n * a, color: 'rgba(148,160,187,.22)', dash: [2, 4] })),
+      dims: [
+        { x1: 0, x2: a, y: top * 1.32, label: `a = ${fmt(a, 2)} Å`, color: C.accent },
+        ...(bf > 0.02 && V0 > 0 ? [{ x1: a - bf * a, x2: a, y: top * 1.1, label: bf >= 0.12 ? `b·a` : '', color: C['accent-3'] }] : [])
+      ]
+    };
     this.pot.update('none');
 
     // confronto con la teoria perturbativa (elettrone quasi libero):

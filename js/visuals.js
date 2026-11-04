@@ -121,6 +121,14 @@ const Visuals = (() => {
       this.renderer.setSize(w, h, false);
       this.camera.aspect = w / h;
       this.camera.updateProjectionMatrix();
+      if (this.fitR && this.controls && !this.moved) this.fitToAspect();
+    }
+    /** Su riquadri stretti (telefono in verticale) allontana la camera finché la scena (raggio fitR) entra per intero. */
+    fitToAspect() {
+      const v = this.camera.fov * Math.PI / 360, half = Math.min(v, Math.atan(Math.tan(v) * this.camera.aspect));
+      const d = Math.max(this.baseDist, this.fitR / Math.sin(half));
+      const dir = this.camera.position.clone().sub(this.controls.target).normalize();
+      this.camera.position.copy(this.controls.target.clone().add(dir.multiplyScalar(d)));
     }
     render() {
       if (this.onFrame) this.onFrame();
@@ -173,6 +181,9 @@ const Visuals = (() => {
     constructor(host) {
       super(host, { pos: [3.4, 2.5, 4.2] });
       this.controls.minDistance = 2.5; this.controls.maxDistance = 14;
+      this.baseDist = this.camera.position.length(); this.fitR = 1.95;
+      this.controls.addEventListener('start', () => { this.moved = true; });
+      this.resize();
       this.cell = new THREE.Group(); this.scene.add(this.cell);
       this.sphereGeo = new THREE.SphereGeometry(1, 48, 32);
       // piani di taglio: tengono solo ciò che sta dentro il cubo [-1,1]³
@@ -721,6 +732,18 @@ const Visuals = (() => {
         ctx.closePath(); ctx.fill();
         if (ar.label) { ctx.textAlign = 'left'; ctx.fillText(ar.label, (x1 + x2) / 2 + 8, (y1 + y2) / 2); ctx.textAlign = 'center'; }
       }
+      // quote: freccia a doppia punta con etichetta centrata sopra (es. passo reticolare a, larghezza barriera)
+      ctx.font = '600 12px "JetBrains Mono", monospace'; ctx.textAlign = 'center';
+      for (const d of o.dims || []) {
+        const x1 = x.getPixelForValue(d.x1), x2 = x.getPixelForValue(d.x2), py = y.getPixelForValue(d.y);
+        ctx.strokeStyle = d.color; ctx.fillStyle = d.color; ctx.lineWidth = 1.4; ctx.setLineDash([]);
+        ctx.beginPath(); ctx.moveTo(x1, py); ctx.lineTo(x2, py); ctx.stroke();
+        for (const [px, dir] of [[x1, 1], [x2, -1]]) {
+          ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + dir * 7, py - 3.5); ctx.lineTo(px + dir * 7, py + 3.5); ctx.closePath(); ctx.fill();
+          ctx.beginPath(); ctx.moveTo(px, py - 5); ctx.lineTo(px, py + 5); ctx.stroke();
+        }
+        if (d.label) ctx.fillText(d.label, (x1 + x2) / 2, py - 6);
+      }
       ctx.restore();
     }
   };
@@ -794,7 +817,7 @@ const Visuals = (() => {
    *    "le più vicine" lungo x)
    *  - etichette dei punti ad alta simmetria disegnate dal plugin overlays */
   function makeBandChart(canvas, { describeK } = {}) {
-    return new Chart(canvas, {
+    const chart = new Chart(canvas, {
       type: 'scatter',
       data: { datasets: [] },
       options: {
@@ -846,6 +869,23 @@ const Visuals = (() => {
         }
       }
     });
+    // Sul telefono toccare il grafico non deve coprirlo con l'elenco di tutte le bande:
+    // si mostra solo la banda più vicina al dito (titolo = posizione k), in un riquadro piccolo.
+    const mq = window.matchMedia('(pointer: coarse), (max-width: 768px)');
+    const applyCompact = () => {
+      const c = mq.matches, tt = chart.options.plugins.tooltip;
+      chart.options.interaction.axis = c ? 'xy' : 'x';
+      tt.axis = c ? 'xy' : 'x';
+      tt.displayColors = !c;
+      tt.padding = c ? 6 : 10;
+      tt.titleFont = { size: c ? 11 : 12 };
+      tt.bodyFont = { size: c ? 11 : 12 };
+      tt.caretPadding = c ? 14 : 2;
+      chart.update('none');
+    };
+    mq.addEventListener('change', applyCompact);
+    applyCompact();
+    return chart;
   }
 
   /** Crea un dataset linea. label che inizia con "_" = nascosto in legenda. */
