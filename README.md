@@ -9,6 +9,9 @@ index.html        struttura della SPA e testi di teoria
 css/style.css     tema, layout (sidebar + 2/3 grafica + 1/3 controlli), animazioni
 js/physics.js     costanti, database materiali, tutte le equazioni (testabile con Node)
 js/visuals.js     scene Three.js, grafici Chart.js, rivelatore Canvas 2D
+js/i18n.js        selettore IT | EN: traduce i testi a runtime (nodi di testo, attributi, grafici)
+js/i18n-static.js traduzioni inglesi dei testi di index.html (UI, teoria, note)
+js/i18n-dyn.js    traduzioni inglesi dei testi prodotti da main.js / physics.js (pannelli dati, badge, materiali)
 js/home-fx.js     effetti della Home (reticolo 3D hero, reveal, contatori); vedi design/design.md
 js/main.js        navigazione con hash (#/cryst/lattice …) e controller degli strumenti
 ```

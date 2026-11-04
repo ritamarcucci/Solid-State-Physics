@@ -364,6 +364,15 @@ const Theory = {
     p.style.left = Math.min(Math.max(0, x), Math.max(0, innerWidth - w)) + 'px';
     p.style.top = Math.min(Math.max(0, y), Math.max(0, innerHeight - h)) + 'px';
   },
+  /** Cambio lingua: si ripristinano i testi italiani originali (prima di MathJax) e, in inglese, si traducono. */
+  rebuild() {
+    const th = $('theory-store'), nt = $('b3-note-store');
+    th.innerHTML = this.pristine.theory; nt.innerHTML = this.pristine.notes;
+    I18N.apply(th); I18N.apply(nt);                       // no-op in italiano
+    this.srcs.clear(); this.typeset.clear();
+    th.querySelectorAll('.theory-src').forEach(el => this.srcs.set(el.dataset.tool, el));
+    if (this.open) this.fill();
+  },
   resetInline() { const p = $('theory-panel'); for (const k of ['left', 'top', 'right', 'bottom', 'width', 'height', 'maxHeight']) p.style[k] = ''; },
   /** Dopo un ridimensionamento della finestra del browser, riporta il pannello dentro lo schermo. */
   clamp() {
@@ -619,7 +628,7 @@ Tools.powder = {
     this.grad = bindRange('pw-grad', v => v / 10000, v => `${fmt(100 * v, 2)} %`, update);
     ['pw-mat', 'pw-struct', 'pw-lambda', 'pw-log'].forEach(id => $(id).addEventListener('change', update));
     this.chart = Visuals.makeChart($('pw-chart'), {
-      xTitle: '2θ (gradi)', yTitle: 'Intensità (u.a.)', legend: false,
+      xTitle: I18N.t('2θ (gradi)'), yTitle: I18N.t('Intensità (u.a.)'), legend: false,
       x: { min: 15, max: 150 }, y: { min: 0, max: 110 }
     });
     this.update();
@@ -636,8 +645,8 @@ Tools.powder = {
     const data = Array.from(res.x, (x, i) => ({ x, y: res.y[i] }));
     const log = $('pw-log').checked;
     this.chart.options.scales.y = log
-      ? { type: 'logarithmic', min: 0.3, max: 200, title: { display: true, text: 'Intensità (u.a., log)' } }
-      : { type: 'linear', min: 0, max: 110, title: { display: true, text: 'Intensità (u.a.)' } };
+      ? { type: 'logarithmic', min: 0.3, max: 200, title: { display: true, text: I18N.t('Intensità (u.a., log)') } }
+      : { type: 'linear', min: 0, max: 110, title: { display: true, text: I18N.t('Intensità (u.a.)') } };
     this.chart.data.datasets = [Visuals.line(data, Visuals.COLORS.accent, { width: 1.6, fill: 'origin', fillColor: 'rgba(255,181,71,.10)', label: 'I(2θ)' })];
     // etichette (hkl) sui picchi più alti
     const bgAt = tt => res.y[Math.round((tt - 15) / 135 * (res.y.length - 1))];
@@ -742,7 +751,7 @@ Tools.kp = {
     this.chart.options.scales.x.min = ext ? -nB : -1;
     this.chart.options.scales.x.max = ext ? nB : 1;
     this.chart.options.scales.x.ticks = { stepSize: ext ? 1 : 0.5 };
-    this.chart.options.scales.x.title.text = ext ? 'k (π/a) — schema a zona estesa' : 'k (π/a) — 1ª zona di Brillouin';
+    this.chart.options.scales.x.title.text = I18N.t(ext ? 'k (π/a) — schema a zona estesa' : 'k (π/a) — 1ª zona di Brillouin');
     this.chart.options.scales.y.min = 0;
     this.chart.options.scales.y.max = Math.ceil(Etop * 1.05);
     // bordi delle zone di Brillouin e vettore di Fermi (k_F = Z/2 in unità di π/a)
@@ -839,7 +848,7 @@ Tools.tb = {
     $('tb-chain').addEventListener('change', () => this.setChain());
     $('tb-kind').addEventListener('change', () => this.setChain());
     this.ek = Visuals.makeChart($('tb-ek'), { xTitle: 'k (π/a)', yTitle: 'E (eV)', x: { min: -1, max: 1, ticks: { stepSize: 0.5 } } });
-    this.va = Visuals.makeChart($('tb-va'), { xTitle: 'passo a (Å)', yTitle: 'E (eV)' });
+    this.va = Visuals.makeChart($('tb-va'), { xTitle: I18N.t('passo a (Å)'), yTitle: 'E (eV)' });
     this.setChain();
   },
   /** Cambia il range dello slider del passo: nella catena biatomica la cella
@@ -889,7 +898,7 @@ Tools.tb = {
       const wide = ext && di;                  // con una sola banda lo schema esteso coincide col ridotto
       this.ek.options.scales.x.min = wide ? -2 : -1;
       this.ek.options.scales.x.max = wide ? 2 : 1;
-      this.ek.options.scales.x.title.text = ext ? 'k (π/a) — schema a zona estesa' : 'k (π/a) — 1ª zona di Brillouin';
+      this.ek.options.scales.x.title.text = I18N.t(ext ? 'k (π/a) — schema a zona estesa' : 'k (π/a) — 1ª zona di Brillouin');
     };
 
     if (ph) {
@@ -1011,7 +1020,7 @@ Tools.pseudo = {
     materialSelect($('ps-atom'), 'pseudo', 'Na');
     this.t = 0;
     this.chart = Visuals.makeChart($('ps-chart'), {
-      xTitle: 'r (Å) — nucleo al centro', yTitle: 'V(r) (eV)', y2Title: 'R(r)  (Å⁻³ᐟ²)',
+      xTitle: I18N.t('r (Å) — nucleo al centro'), yTitle: 'V(r) (eV)', y2Title: 'R(r)  (Å⁻³ᐟ²)',
       x: { min: -5, max: 5 }, y: { min: -60, max: 20 }, y2: { min: -1, max: 1 }
     });
     this.readT = bindRange('ps-t', v => v / 1000, v => `${Math.round(v * 100)} %`, () => { this.t = this.readT(); this.draw(); });
@@ -1024,7 +1033,7 @@ Tools.pseudo = {
     const key = $('ps-atom').value;
     this.sys = Physics.pseudoSystem(key);
     setNotice('pseudo', this.sys.approx
-      ? `⚠ <b>Curva qualitativa (parametri approssimati)</b>: per ${M()[key].name.toLowerCase()} il raggio di empty core non è tabulato, si usa r<sub>c</sub> ≈ 0.4·r<sub>atomico</sub>.`
+      ? I18N.t(`⚠ <b>Curva qualitativa (parametri approssimati)</b>: per ${M()[key].name.toLowerCase()} il raggio di empty core non è tabulato, si usa r<sub>c</sub> ≈ 0.4·r<sub>atomico</sub>.`)
       : null);
     // griglia di visualizzazione simmetrica: ψ(|x|) per mostrare il nucleo al centro
     const n = 801;
@@ -1132,7 +1141,7 @@ Tools.bands3d = {
     // zoom attorno a E_F: utile per il Bi (sovrapposizione di decine di meV) e per il cono di Dirac
     const zoom = document.createElement('label');
     zoom.className = 'check'; zoom.id = 'b3-zoom-wrap';
-    zoom.innerHTML = '<input type="checkbox" id="b3-zoom"> <span id="b3-zoom-text">Ingrandisci attorno a E<sub>F</sub></span>';
+    zoom.innerHTML = '<input type="checkbox" id="b3-zoom"> <span id="b3-zoom-text" data-no-i18n>' + I18N.t('Ingrandisci attorno a E<sub>F</sub>') + '</span>';
     $('b3-gap').closest('label').after(zoom);
     $('b3-zoom').addEventListener('change', () => this.draw());
     this.update();
@@ -1212,7 +1221,7 @@ Tools.bands3d = {
       const inLegend = info.metal ? i === 0 : (i === 0 || i === filled);
       const ds = Visuals.line(r.x.map((x, j) => ({ x, y: b[j] })), col, { width: 2, label });
       ds.hideInLegend = !inLegend;
-      ds.legendText = info.metal ? 'bande' : (i === 0 ? 'bande di valenza' : 'bande di conduzione');
+      ds.legendText = I18N.t(info.metal ? 'bande' : (i === 0 ? 'bande di valenza' : 'bande di conduzione'));
       return ds;
     });
     this.chart.options.scales.x.max = xmax;
@@ -1261,15 +1270,15 @@ Tools.bands3d = {
 
     // avvisi sul modello usato
     if (info.semimetal) {
-      setNotice('bands3d', '⚠ Modello <b>tight binding sp³ con spin-orbita</b> sul reticolo A7 vero, parametri nello stile di Liu &amp; Allen (PRB 52, 1566): riproduce l\'ordine di grandezza di sovrapposizione e gap in L, non è un fit quantitativo.');
+      setNotice('bands3d', I18N.t('⚠ Modello <b>tight binding sp³ con spin-orbita</b> sul reticolo A7 vero, parametri nello stile di Liu &amp; Allen (PRB 52, 1566): riproduce l\'ordine di grandezza di sovrapposizione e gap in L, non è un fit quantitativo.'));
     } else if (info.dirac) {
-      setNotice('bands3d', '⚠ Solo le bande <b>π</b> (orbitali p<sub>z</sub>), tight binding con primi (t) e secondi (t′) vicini: le bande σ non sono mostrate.');
+      setNotice('bands3d', I18N.t('⚠ Solo le bande <b>π</b> (orbitali p<sub>z</sub>), tight binding con primi (t) e secondi (t′) vicini: le bande σ non sono mostrate.'));
     } else if (info.metal) {
       const base = info.approx
         ? 'Modello semplificato: elettrone quasi libero sul reticolo vero, con pseudopotenziale empty core schermato (parametri approssimati).'
         : 'Metallo semplice: pseudopotenziale locale a due coefficienti (Ashcroft), più semplice del modello usato per i semiconduttori.';
-      const d = info.transition ? ' <b>Mancano le bande d</b>, essenziali in questo metallo: la figura mostra solo la banda s(p).' : '';
-      setNotice('bands3d', `⚠ ${base}${d}${info.note ? ' ' + info.note : ''}`);
+      const d = info.transition ? ' ' + I18N.t('<b>Mancano le bande d</b>, essenziali in questo metallo: la figura mostra solo la banda s(p).') : '';
+      setNotice('bands3d', `⚠ ${I18N.t(base)}${d}${info.note ? ' ' + I18N.t(info.note) : ''}`);
     } else setNotice('bands3d', null);
 
     const badge = $('b3-badge');
@@ -1290,7 +1299,7 @@ Tools.bands3d = {
         <div class="row"><span>minimo di conduzione</span><b>${info.EeAt}: ${meV(info.Ee)} meV</b></div>
         <div class="row"><span>densità n = p (neutralità)</span><b>${(info.nCm3 / 1e17).toFixed(1)}×10¹⁷ cm⁻³</b></div>
         <div class="row"><span>distanze dei gusci</span><span>${info.shellDist.map(d => d.toFixed(2)).join(' · ')} Å</span></div>
-        <hr><span>Tasca di lacune a T (1) ed elettroni a L (3): E<sub>F</sub> è fissato da n = p. Attiva «Ingrandisci attorno a E<sub>F</sub>» per vedere le bande incrociarsi.</span>
+        <hr><span>${I18N.t('Tasca di lacune a T (1) ed elettroni a L (3): E<sub>F</sub> è fissato da n = p. Attiva «Ingrandisci attorno a E<sub>F</sub>» per vedere le bande incrociarsi.')}</span>
         <hr><div class="row"><span>tempo</span><span>${fmt(r.ms, 0)} ms</span></div>`;
     } else if (info.dirac) {
       badge.textContent = `${mat.name}: gap nulla · cono di Dirac in K`;
@@ -1303,7 +1312,7 @@ Tools.bands3d = {
         <div class="row"><span>a<sub>CC</sub></span><span>${fmt(info.a_cc, 3)} Å</span></div>
         <div class="row"><span>v<sub>F</sub> = 3·t·a<sub>CC</sub>/2ħ</span><b class="hl">${fmt(info.vF / 1e6, 2)}×10⁶ m/s</b></div>
         <div class="row"><span>E(π*) in M</span><span>${fmt(info.EM, 2)} eV</span></div>
-        <hr><span>Dispersione lineare E = ±ħv<sub>F</sub>|q| attorno a K: fermioni di Dirac senza massa. L'asimmetria tra le due bande viene da t′.</span>`;
+        <hr><span>${I18N.t("Dispersione lineare E = ±ħv<sub>F</sub>|q| attorno a K: fermioni di Dirac senza massa. L'asimmetria tra le due bande viene da t′.")}</span>`;
     } else if (info.metal) {
       badge.textContent = `${mat.name}: metallo · ${info.crossing} band${info.crossing === 1 ? 'a attraversa' : 'e attraversano'} E_F`;
       badge.className = 'badge good';
@@ -1344,6 +1353,9 @@ Tools.bands3d = {
  * ============================================================================= */
 document.addEventListener('DOMContentLoaded', () => {
   window.__appStarted = true;
+  Theory.pristine = { theory: $('theory-store').innerHTML, notes: $('b3-note-store').innerHTML };   // testo italiano originale
+  I18N.add(window.I18N_STATIC || {});
+  I18N.init();
   // la navigazione funziona sempre, anche se una libreria grafica manca
   document.querySelectorAll('.module-card').forEach(c =>
     c.addEventListener('click', () => { location.hash = `#/${c.dataset.module}`; }));
@@ -1361,6 +1373,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   Visuals.loadColors();
   Visuals.initCharts();
+  I18N.onChange(() => {
+    Theory.rebuild();
+    const z = $('b3-zoom-text'); if (z) z.innerHTML = I18N.t('Ingrandisci attorno a E<sub>F</sub>');
+    const T = state.tool && Tools[state.tool];
+    if (T && T.ready && T.update) T.update();
+  });
   Theory.init();
   initBadges();
   initTextGlue();

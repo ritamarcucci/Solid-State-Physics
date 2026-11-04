@@ -25,7 +25,7 @@
 
   <!-- Foglio di stile del progetto (percorso relativo: index.html deve stare
        nella radice del sito, accanto alle cartelle css/ e js/) -->
-  <link rel="stylesheet" href="css/style.css?v=7" onerror="window.__loadErrors.push('css/style.css?v=7')">
+  <link rel="stylesheet" href="css/style.css?v=8" onerror="window.__loadErrors.push('css/style.css?v=8')">
 
   <!-- Registro degli errori di caricamento (mostrato a schermo da uno script in fondo) -->
   <script>window.__loadErrors = [];</script>
@@ -43,6 +43,8 @@
         processEscapes: true
       },
       options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] },
+      // niente composizione automatica all'avvio: main.js compone ogni pannello dopo averlo tradotto (IT/EN)
+      startup: { typeset: false },
       chtml: { scale: 1.0 }
     };
   </script>
@@ -63,10 +65,13 @@
           onerror="window.__loadErrors.push('Chart.js (unpkg)')"></script>
 
   <!-- Codice dell'app: "defer" mantiene l'ordine physics → visuals → main -->
-  <script defer src="js/physics.js?v=7" onerror="window.__loadErrors.push('js/physics.js?v=7')"></script>
-  <script defer src="js/visuals.js?v=7" onerror="window.__loadErrors.push('js/visuals.js?v=7')"></script>
-  <script defer src="js/main.js?v=7" onerror="window.__loadErrors.push('js/main.js?v=7')"></script>
-  <script defer src="js/home-fx.js?v=7" onerror="window.__loadErrors.push('js/home-fx.js?v=7')"></script>
+  <script defer src="js/i18n.js?v=8"></script>
+  <script defer src="js/i18n-static.js?v=8"></script>
+  <script defer src="js/i18n-dyn.js?v=8"></script>
+  <script defer src="js/physics.js?v=8" onerror="window.__loadErrors.push('js/physics.js?v=8')"></script>
+  <script defer src="js/visuals.js?v=8" onerror="window.__loadErrors.push('js/visuals.js?v=8')"></script>
+  <script defer src="js/main.js?v=8" onerror="window.__loadErrors.push('js/main.js?v=8')"></script>
+  <script defer src="js/home-fx.js?v=8" onerror="window.__loadErrors.push('js/home-fx.js?v=8')"></script>
 </head>
 <body>
 
@@ -77,6 +82,7 @@
      VISTA 1 — HOME (l'unica visibile all'avvio)
      ===================================================================== -->
 <main id="view-home" class="view active" aria-label="Home">
+  <div class="lang-toggle home-lang" role="group" aria-label="Language / Lingua"><button type="button" data-lang="it" aria-pressed="true" title="Italiano">IT</button><button type="button" data-lang="en" aria-pressed="false" title="English">EN</button></div>
   <section class="hero">
     <canvas id="hero-lattice" aria-hidden="true"></canvas>
     <header class="home-head">
@@ -140,7 +146,8 @@
 <div id="view-work" class="view hidden" aria-label="Area di lavoro">
 
   <aside id="sidebar">
-    <button type="button" id="btn-home" class="btn-home">← Torna alla Home</button>
+    <div class="side-top"><button type="button" id="btn-home" class="btn-home">← Torna alla Home</button>
+      <div class="lang-toggle" role="group" aria-label="Language / Lingua"><button type="button" data-lang="it" aria-pressed="true" title="Italiano">IT</button><button type="button" data-lang="en" aria-pressed="false" title="English">EN</button></div></div>
     <div class="side-title">
       <span class="eyebrow" id="side-eyebrow">Modulo</span>
       <h2 id="side-module-title">—</h2>
@@ -485,7 +492,7 @@
       <section class="theory-sec">
         <h4>Equazione di Kronig-Penney</h4>
         <div class="info-body">
-            <p>Potenziale periodico a gradini: buca larga $w=a-b$ a $V=0$, barriera larga $b$ a $V_0$. Il teorema di Bloch e la continuità di $\psi$ e $\psi'$ danno, per $E<V_0$:</p>
+            <p>Potenziale periodico a gradini: buca larga $w=a-b$ a $V=0$, barriera larga $b$ a $V_0$. Il teorema di Bloch e la continuità di $\psi$ e $\psi'$ danno, per $E&lt;V_0$:</p>
             <p>$$\cos ka = \cos\alpha w\,\cosh\beta b + \frac{\beta^2-\alpha^2}{2\alpha\beta}\sin\alpha w\,\sinh\beta b$$</p>
             <p>con $\alpha=\sqrt{2mE}/\hbar$ e $\beta=\sqrt{2m(V_0-E)}/\hbar$ (per $E>V_0$ si pone $\beta\to i\gamma$). Solo le energie per cui il secondo membro sta in $[-1,1]$ ammettono un $k$ reale: sono le bande.</p>
             <p>Con $V_0=0$ si ha $\cos ka=\cos\alpha a$: la parabola libera $E=\hbar^2k^2/2m$ ripiegata nella prima zona. Accendendo $V_0$ si aprono gap ai bordi ($k=\pm\pi/a$) e al centro di zona, dove i rami ripiegati si incrociano.</p>
@@ -520,7 +527,7 @@
             <p>Lo stato di valenza (es. 3s del Na) deve essere ortogonale agli stati di core 1s e 2s: per questo oscilla vicino al nucleo e ha 2 nodi. Phillips e Kleinman scrivono:</p>
             <p>$$|\psi\rangle = |\varphi\rangle - \sum_c |c\rangle\langle c|\varphi\rangle$$</p>
             <p>dove $\varphi$ è liscia. Sostituendo nell'equazione di Schrödinger, $\varphi$ obbedisce a $(T + V + V_R)\varphi = E\varphi$ con lo stesso autovalore, e $$V_R = \sum_c (E-E_c)|c\rangle\langle c| \ge 0$$ è repulsivo e localizzato nel core: cancella gran parte della buca coulombiana.</p>
-            <p>La versione più semplice è l'<b>empty core</b> di Ashcroft: $V_{ps}=0$ per $r<r_c$ e $-Z_v e^2/r$ fuori. Un potenziale così debole spiega perché il modello a elettrone quasi libero funziona per i metalli semplici.</p>
+            <p>La versione più semplice è l'<b>empty core</b> di Ashcroft: $V_{ps}=0$ per $r&lt;r_c$ e $-Z_v e^2/r$ fuori. Un potenziale così debole spiega perché il modello a elettrone quasi libero funziona per i metalli semplici.</p>
           </div>
       </section>
     </div>
@@ -583,7 +590,7 @@
 
   <div class="b3-note" data-mat="Ge">
     <h4>Germanio</h4>
-    <p>Come il silicio ha massimo di valenza in Γ, ma il minimo assoluto di conduzione è in <b>L</b> (4 valli), a soli 0.14 eV sopra la valle diretta in Γ: gap indiretta 0.66 eV, quasi diretta. Drogando e deformando il Ge si può renderla diretta.</p>
+    <p>Come il silicio ha massimo di valenza in Γ, ma il minimo assoluto di conduzione è in <b>L</b> (4 valli), a soli 0.14 eV sotto la valle diretta in Γ: gap indiretta 0.66 eV, quasi diretta. Drogando e deformando il Ge si può renderla diretta.</p>
   </div>
 
   <div class="b3-note" data-mat="GaAs">
@@ -654,9 +661,9 @@
   window.addEventListener('load', function () {
     var errs = window.__loadErrors.slice();
     // "const Physics" non crea una proprietà di window: si usa typeof
-    if (typeof Physics === 'undefined' && errs.indexOf('js/physics.js?v=7') < 0) errs.push('js/physics.js (errore di esecuzione)');
-    if (typeof Visuals === 'undefined' && errs.indexOf('js/visuals.js?v=7') < 0) errs.push('js/visuals.js (errore di esecuzione)');
-    if (!window.__appStarted && errs.indexOf('js/main.js?v=7') < 0) errs.push('js/main.js (non avviato)');
+    if (typeof Physics === 'undefined' && errs.indexOf('js/physics.js?v=8') < 0) errs.push('js/physics.js (errore di esecuzione)');
+    if (typeof Visuals === 'undefined' && errs.indexOf('js/visuals.js?v=8') < 0) errs.push('js/visuals.js (errore di esecuzione)');
+    if (!window.__appStarted && errs.indexOf('js/main.js?v=8') < 0) errs.push('js/main.js (non avviato)');
     if (!errs.length) return;
     var box = document.getElementById('load-errors');
     box.innerHTML = '<button type="button" aria-label="Chiudi" onclick="this.parentNode.style.display=\'none\'" ' +

@@ -676,7 +676,7 @@ const Visuals = (() => {
         if (px < ca.left - 1 || px > ca.right + 1) continue;
         ctx.strokeStyle = l.color; ctx.lineWidth = l.width || 1; ctx.setLineDash(l.dash || []);
         ctx.beginPath(); ctx.moveTo(px, ca.top); ctx.lineTo(px, ca.bottom); ctx.stroke();
-        if (l.label) { ctx.fillStyle = l.color; ctx.setLineDash([]); ctx.fillText(l.label, px + 4, ca.top + 12); }
+        if (l.label) { ctx.fillStyle = l.color; ctx.setLineDash([]); ctx.fillText(I18N.t(l.label), px + 4, ca.top + 12); }
       }
       for (const l of o.hLines || []) {
         const py = y.getPixelForValue(l.y);
@@ -685,14 +685,14 @@ const Visuals = (() => {
         ctx.beginPath(); ctx.moveTo(ca.left, py); ctx.lineTo(ca.right, py); ctx.stroke();
         if (l.label) {
           ctx.setLineDash([]); ctx.fillStyle = l.color;
-          const tw = ctx.measureText(l.label).width;
-          ctx.fillText(l.label, ca.right - tw - 6, py - 5);
+          const lb = I18N.t(l.label), tw = ctx.measureText(lb).width;
+          ctx.fillText(lb, ca.right - tw - 6, py - 5);
         }
       }
       for (const r of o.yRanges || []) if (r.label) {
         const py = (y.getPixelForValue(r.from) + y.getPixelForValue(r.to)) / 2;
         if (py < ca.top || py > ca.bottom) continue;
-        ctx.fillStyle = r.labelColor || COLORS.accent; ctx.fillText(r.label, ca.left + 6, py + 4);
+        ctx.fillStyle = r.labelColor || COLORS.accent; ctx.fillText(I18N.t(r.label), ca.left + 6, py + 4);
       }
       ctx.textAlign = 'center';
       for (const t of o.labels || []) {
@@ -717,7 +717,7 @@ const Visuals = (() => {
         if (py < ca.top || py > ca.bottom) continue;
         ctx.fillStyle = m.color; ctx.strokeStyle = COLORS.bg; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(px, py, 5, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
-        if (m.label) ctx.fillText(m.label, px, py + (m.below ? 18 : -10));
+        if (m.label) ctx.fillText(I18N.t(m.label), px, py + (m.below ? 18 : -10));
       }
       // freccia tra due punti (gap)
       for (const ar of o.arrows || []) {
@@ -730,7 +730,7 @@ const Visuals = (() => {
         ctx.lineTo(x2 - 9 * Math.cos(ang - 0.4), y2 - 9 * Math.sin(ang - 0.4));
         ctx.lineTo(x2 - 9 * Math.cos(ang + 0.4), y2 - 9 * Math.sin(ang + 0.4));
         ctx.closePath(); ctx.fill();
-        if (ar.label) { ctx.textAlign = 'left'; ctx.fillText(ar.label, (x1 + x2) / 2 + 8, (y1 + y2) / 2); ctx.textAlign = 'center'; }
+        if (ar.label) { ctx.textAlign = 'left'; ctx.fillText(I18N.t(ar.label), (x1 + x2) / 2 + 8, (y1 + y2) / 2); ctx.textAlign = 'center'; }
       }
       // quote: freccia a doppia punta con etichetta centrata sopra (es. passo reticolare a, larghezza barriera)
       ctx.font = '600 12px "JetBrains Mono", monospace'; ctx.textAlign = 'center';
@@ -742,7 +742,7 @@ const Visuals = (() => {
           ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + dir * 7, py - 3.5); ctx.lineTo(px + dir * 7, py + 3.5); ctx.closePath(); ctx.fill();
           ctx.beginPath(); ctx.moveTo(px, py - 5); ctx.lineTo(px, py + 5); ctx.stroke();
         }
-        if (d.label) ctx.fillText(d.label, (x1 + x2) / 2, py - 6);
+        if (d.label) ctx.fillText(I18N.t(d.label), (x1 + x2) / 2, py - 6);
       }
       ctx.restore();
     }
@@ -891,9 +891,9 @@ const Visuals = (() => {
   /** Crea un dataset linea. label che inizia con "_" = nascosto in legenda. */
   function line(data, color, opts = {}) {
     return {
-      label: opts.label || '_', data, showLine: true, borderColor: color,
+      label: I18N.t(opts.label || '_'), data, showLine: true, borderColor: color,
       // nome mostrato nel tooltip (anche per le curve nascoste in legenda)
-      tip: opts.tip || (opts.label && !opts.label.startsWith('_') ? opts.label : undefined),
+      tip: I18N.t(opts.tip || (opts.label && !opts.label.startsWith('_') ? opts.label : undefined)),
       noTip: !!opts.noTip,
       backgroundColor: opts.fillColor || color, borderWidth: opts.width ?? 2,
       borderDash: opts.dash || [], fill: opts.fill ?? false, yAxisID: opts.yAxisID || 'y',
