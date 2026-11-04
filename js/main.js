@@ -651,7 +651,7 @@ Tools.powder = {
     // tabella riflessioni: indici con spazio se ≥ 10 o negativi, barra dell'intensità, riga più intensa in evidenza
     const hkl = p => [p.h, p.k, p.l].some(v => v < 0 || v > 9) ? `(${p.h} ${p.k} ${p.l})` : `(${p.h}${p.k}${p.l})`;
     const Imax = Math.max(...res.peaks.map(p => p.Irel), 0);
-    $('pw-table').innerHTML = '<thead><tr><th>hkl</th><th>2θ <small>°</small></th><th>d <small>Å</small></th><th>m</th><th>|F|²</th><th title="fattore di Debye-Waller e^(−2Bs²)">DW</th><th title="intensità relativa">I %</th></tr></thead><tbody>' +
+    $('pw-table').innerHTML = '<thead><tr><th title="indici di Miller">hkl</th><th title="angolo di diffrazione 2θ, in gradi">Angolo 2θ <small>(°)</small></th><th title="distanza tra i piani reticolari">d <small>(Å)</small></th><th title="molteplicità: quanti piani equivalenti">m</th><th title="fattore di struttura al quadrato">|F|²</th><th title="fattore di Debye-Waller e^(−2Bs²)">DW</th><th title="intensità relativa al picco più forte">I %</th></tr></thead><tbody>' +
       res.peaks.map(p => {
         const w = Math.max(0, Math.min(100, p.Irel));
         const cls = p.Irel >= Imax - 1e-9 && Imax > 0 ? 'top' : (p.Irel < 0.05 ? 'zero' : '');

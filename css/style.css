@@ -427,7 +427,7 @@ code { font-family: var(--font-mono); font-size: .92em; }
 
 /* ---- tabella picchi (polveri) ---- */
 .table-wrap {
-  flex: 0 0 auto; max-height: 190px; overflow: auto; -webkit-overflow-scrolling: touch;
+  flex: 0 0 auto; max-height: clamp(190px, 36vh, 330px); overflow: auto; -webkit-overflow-scrolling: touch;
   border: 1px solid var(--line); border-radius: var(--radius-sm);
   background: var(--panel);
 }
@@ -441,6 +441,10 @@ code { font-family: var(--font-mono); font-size: .92em; }
 .peaks tr.zero td { color: var(--faint); }
 .peaks td.ibar { min-width: 74px; }
 .peaks th small { font-weight: 400; opacity: .8; }
+/* intestazioni in Inter: nel font a spaziatura fissa la θ somiglia a uno 0 ("2θ" sembrava "20") */
+.peaks th { font-family: var(--font); font-size: 12px; letter-spacing: 0; line-height: 1.2; }
+.peaks-legend { flex: none; margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--faint); }
+.peaks-legend b { color: var(--muted); font-weight: 600; }
 
 /* =============================================================================
  *  COLONNA CONTROLLI (1/3)
@@ -699,7 +703,9 @@ mjx-container[display="true"] { margin: .4em 0 !important; overflow-x: auto; ove
   .side-title .eyebrow { display: none; }
   .side-title h2 { font-size: 17px; }
   /* tabella hkl: 7 colonne dentro 340 px, senza tagliare l'ultima */
-  .table-wrap { max-height: 230px; }
+  .table-wrap { max-height: 300px; }
+  .peaks th { font-size: 10.5px; }
+  .peaks-legend { font-size: 11px; }
   .peaks { font-size: 11px; }
   .peaks th, .peaks td { padding: 4px 6px; }
   .peaks td.ibar { min-width: 0; }
