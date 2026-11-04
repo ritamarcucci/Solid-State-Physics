@@ -25,7 +25,7 @@
 
   <!-- Foglio di stile del progetto (percorso relativo: index.html deve stare
        nella radice del sito, accanto alle cartelle css/ e js/) -->
-  <link rel="stylesheet" href="css/style.css?v=6" onerror="window.__loadErrors.push('css/style.css?v=6')">
+  <link rel="stylesheet" href="css/style.css?v=7" onerror="window.__loadErrors.push('css/style.css?v=7')">
 
   <!-- Registro degli errori di caricamento (mostrato a schermo da uno script in fondo) -->
   <script>window.__loadErrors = [];</script>
@@ -63,10 +63,10 @@
           onerror="window.__loadErrors.push('Chart.js (unpkg)')"></script>
 
   <!-- Codice dell'app: "defer" mantiene l'ordine physics → visuals → main -->
-  <script defer src="js/physics.js?v=6" onerror="window.__loadErrors.push('js/physics.js?v=6')"></script>
-  <script defer src="js/visuals.js?v=6" onerror="window.__loadErrors.push('js/visuals.js?v=6')"></script>
-  <script defer src="js/main.js?v=6" onerror="window.__loadErrors.push('js/main.js?v=6')"></script>
-  <script defer src="js/home-fx.js?v=6" onerror="window.__loadErrors.push('js/home-fx.js?v=6')"></script>
+  <script defer src="js/physics.js?v=7" onerror="window.__loadErrors.push('js/physics.js?v=7')"></script>
+  <script defer src="js/visuals.js?v=7" onerror="window.__loadErrors.push('js/visuals.js?v=7')"></script>
+  <script defer src="js/main.js?v=7" onerror="window.__loadErrors.push('js/main.js?v=7')"></script>
+  <script defer src="js/home-fx.js?v=7" onerror="window.__loadErrors.push('js/home-fx.js?v=7')"></script>
 </head>
 <body>
 
@@ -654,9 +654,9 @@
   window.addEventListener('load', function () {
     var errs = window.__loadErrors.slice();
     // "const Physics" non crea una proprietà di window: si usa typeof
-    if (typeof Physics === 'undefined' && errs.indexOf('js/physics.js?v=6') < 0) errs.push('js/physics.js (errore di esecuzione)');
-    if (typeof Visuals === 'undefined' && errs.indexOf('js/visuals.js?v=6') < 0) errs.push('js/visuals.js (errore di esecuzione)');
-    if (!window.__appStarted && errs.indexOf('js/main.js?v=6') < 0) errs.push('js/main.js (non avviato)');
+    if (typeof Physics === 'undefined' && errs.indexOf('js/physics.js?v=7') < 0) errs.push('js/physics.js (errore di esecuzione)');
+    if (typeof Visuals === 'undefined' && errs.indexOf('js/visuals.js?v=7') < 0) errs.push('js/visuals.js (errore di esecuzione)');
+    if (!window.__appStarted && errs.indexOf('js/main.js?v=7') < 0) errs.push('js/main.js (non avviato)');
     if (!errs.length) return;
     var box = document.getElementById('load-errors');
     box.innerHTML = '<button type="button" aria-label="Chiudi" onclick="this.parentNode.style.display=\'none\'" ' +

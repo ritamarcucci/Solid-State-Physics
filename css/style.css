@@ -703,7 +703,11 @@ mjx-container[display="true"] { margin: .4em 0 !important; overflow-x: auto; ove
   .side-title .eyebrow { display: none; }
   .side-title h2 { font-size: 17px; }
   /* tabella hkl: 7 colonne dentro 340 px, senza tagliare l'ultima */
-  .table-wrap { max-height: 300px; }
+  /* polveri: il pannello cresce con il contenuto e la tabella mostra TUTTE le righe (scorre la pagina,
+     non un riquadro interno che finiva tagliato dal bordo del pannello) */
+  #tool-powder .viz-pane { height: auto; overflow: visible; }
+  #tool-powder .chart-host.grow { flex: none; height: 320px; }
+  .table-wrap { max-height: none; overflow-y: visible; overflow-x: auto; }
   .peaks th { font-size: 10.5px; }
   .peaks-legend { font-size: 11px; }
   .peaks { font-size: 11px; }
