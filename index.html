@@ -25,7 +25,7 @@
 
   <!-- Foglio di stile del progetto (percorso relativo: index.html deve stare
        nella radice del sito, accanto alle cartelle css/ e js/) -->
-  <link rel="stylesheet" href="css/style.css?v=8" onerror="window.__loadErrors.push('css/style.css?v=8')">
+  <link rel="stylesheet" href="css/style.css?v=9" onerror="window.__loadErrors.push('css/style.css?v=9')">
 
   <!-- Registro degli errori di caricamento (mostrato a schermo da uno script in fondo) -->
   <script>window.__loadErrors = [];</script>
@@ -65,13 +65,14 @@
           onerror="window.__loadErrors.push('Chart.js (unpkg)')"></script>
 
   <!-- Codice dell'app: "defer" mantiene l'ordine physics → visuals → main -->
-  <script defer src="js/i18n.js?v=8"></script>
-  <script defer src="js/i18n-static.js?v=8"></script>
-  <script defer src="js/i18n-dyn.js?v=8"></script>
-  <script defer src="js/physics.js?v=8" onerror="window.__loadErrors.push('js/physics.js?v=8')"></script>
-  <script defer src="js/visuals.js?v=8" onerror="window.__loadErrors.push('js/visuals.js?v=8')"></script>
-  <script defer src="js/main.js?v=8" onerror="window.__loadErrors.push('js/main.js?v=8')"></script>
-  <script defer src="js/home-fx.js?v=8" onerror="window.__loadErrors.push('js/home-fx.js?v=8')"></script>
+  <script defer src="js/i18n.js?v=9"></script>
+  <script defer src="js/i18n-static.js?v=9"></script>
+  <script defer src="js/i18n-dyn.js?v=9"></script>
+  <script defer src="js/i18n-more.js?v=9"></script>
+  <script defer src="js/physics.js?v=9" onerror="window.__loadErrors.push('js/physics.js?v=9')"></script>
+  <script defer src="js/visuals.js?v=9" onerror="window.__loadErrors.push('js/visuals.js?v=9')"></script>
+  <script defer src="js/main.js?v=9" onerror="window.__loadErrors.push('js/main.js?v=9')"></script>
+  <script defer src="js/home-fx.js?v=9" onerror="window.__loadErrors.push('js/home-fx.js?v=9')"></script>
 </head>
 <body>
 
@@ -241,7 +242,13 @@
     <section class="tool" id="tool-powder" data-tool="powder" data-module="cryst">
       <div class="viz-pane">
         <div class="viz-head"><h3>Stanza dei raggi X — diffrattogramma di polveri</h3><span class="badge" id="pw-badge">—</span></div>
-        <div class="chart-host grow"><canvas id="pw-chart"></canvas></div>
+        <div class="pw-top">
+          <div class="chart-host"><canvas id="pw-chart"></canvas></div>
+          <figure class="panel pw-rings-panel">
+            <figcaption>Anelli di Debye-Scherrer <span>· raggio ∝ 2θ</span></figcaption>
+            <div class="canvas-host"><canvas id="pw-rings"></canvas></div>
+          </figure>
+        </div>
         <div class="table-wrap"><table class="peaks" id="pw-table"></table></div>
         <p class="peaks-legend"><b>hkl</b> indici di Miller del piano · <b>2θ</b> angolo di diffrazione (gradi) · <b>d</b> distanza tra i piani (Å) · <b>m</b> molteplicità · <b>|F|²</b> fattore di struttura al quadrato · <b>DW</b> fattore di Debye-Waller · <b>I %</b> intensità relativa al picco più forte</p>
       </div>
@@ -306,7 +313,7 @@
     <!-- ===================== 2.2 TIGHT BINDING ===================== -->
     <section class="tool" id="tool-tb" data-tool="tb" data-module="bands">
       <div class="viz-pane">
-        <div class="viz-head"><h3>Bottom-up: tight binding 1D</h3><span class="badge" id="tb-badge">—</span></div>
+        <div class="viz-head"><h3 id="tb-title">Bottom-up: tight binding 1D</h3><span class="badge" id="tb-badge">—</span></div>
         <div class="chart-row">
           <div class="chart-host"><canvas id="tb-ek"></canvas></div>
           <div class="chart-host" id="tb-va-host"><canvas id="tb-va"></canvas></div>
@@ -314,10 +321,17 @@
       </div>
       <div class="ctrl-pane">
         <div class="ctrl-group">
-          <label for="tb-chain">Catena</label>
+          <label for="tb-chain">Catena / reticolo</label>
           <select id="tb-chain">
-            <option value="mono">Monoatomica</option>
-            <option value="di">Biatomica (A–B)</option>
+            <optgroup label="Catena 1D">
+              <option value="mono">Monoatomica</option>
+              <option value="di">Biatomica (A–B)</option>
+            </optgroup>
+            <optgroup label="Reticolo 3D (un orbitale s per sito)">
+              <option value="sc">Cubico semplice 3D (SC)</option>
+              <option value="bcc">Cubico a corpo centrato 3D (BCC)</option>
+              <option value="fcc">Cubico a facce centrate 3D (FCC)</option>
+            </optgroup>
           </select>
           <label for="tb-mat">Materiale (imposta la distanza tra primi vicini)</label>
           <select id="tb-mat"></select>
@@ -333,7 +347,7 @@
           <label class="check"><input type="checkbox" id="tb-o1" checked> Primi vicini ($t_1$)</label>
           <label class="check"><input type="checkbox" id="tb-o2"> Secondi vicini ($t_2$)</label>
           <label class="check"><input type="checkbox" id="tb-o3"> Terzi vicini ($t_3$)</label>
-          <label for="tb-a">Passo $a$ <output id="tb-a-out"></output></label>
+          <label for="tb-a" id="tb-a-label">Passo $a$ <output id="tb-a-out"></output></label>
           <input type="range" id="tb-a" min="150" max="600" value="300">
           <label for="tb-eA">$\varepsilon_A$ <output id="tb-eA-out"></output></label>
           <input type="range" id="tb-eA" min="-100" max="100" value="0">
@@ -363,6 +377,16 @@
       <div class="viz-pane">
         <div class="viz-head"><h3>Il trucco del nucleo: pseudopotenziale</h3><span class="badge" id="ps-badge">Potenziale vero</span></div>
         <div class="chart-host grow"><canvas id="ps-chart"></canvas></div>
+        <div class="ps-four">
+          <figure class="panel">
+            <figcaption>Potenziale: carica efficace <span>−q²·v(q)/4πe²</span></figcaption>
+            <div class="chart-host"><canvas id="ps-fqv"></canvas></div>
+          </figure>
+          <figure class="panel">
+            <figcaption>Funzione d'onda: ampiezza di Fourier <span>R̃(q) relativa</span></figcaption>
+            <div class="chart-host"><canvas id="ps-fqw"></canvas></div>
+          </figure>
+        </div>
       </div>
       <div class="ctrl-pane">
         <div class="ctrl-group">
@@ -372,6 +396,7 @@
           <label for="ps-t">Trasformazione manuale <output id="ps-t-out"></output></label>
           <input type="range" id="ps-t" min="0" max="1000" value="0">
           <label class="check"><input type="checkbox" id="ps-vr" checked> Mostra il potenziale repulsivo $V_R$</label>
+          <label class="check"><input type="checkbox" id="ps-zoom"> Zoom sul core: mostra le oscillazioni veloci di ψ</label>
         </div>
         <div class="readout" id="ps-readout"></div>
       </div>
@@ -487,6 +512,13 @@
             <p><b>Deformazioni</b>: una deformazione uniforme $\varepsilon$ sposta tutti i picchi ($\Delta 2\theta = -2\varepsilon\tan\theta$); una microdeformazione casuale li allarga di $4\varepsilon_{rms}\tan\theta$ (Williamson-Hall); un gradiente di deformazione produce una coda asimmetrica.</p>
           </div>
       </section>
+      <section class="theory-sec">
+        <h4>Anelli di Debye-Scherrer</h4>
+        <div class="info-body">
+          <p>In una polvere i cristalliti hanno tutte le orientazioni: per ogni famiglia di piani $(hkl)$ ce ne sono sempre alcuni che soddisfano la legge di Bragg. I fasci diffratti formano quindi un <b>cono</b> di semiapertura $2\theta_{hkl}$ attorno al fascio incidente, e su un rivelatore piatto o su una pellicola si vede un <b>anello</b>.</p>
+          <p>Per una pellicola, il raggio dell'anello è proporzionale all'angolo, $r = R\cdot 2\theta$ (per un rivelatore piatto a distanza $D$ è $r = D\tan 2\theta$). La luminosità segue $I_{hkl}$, lo spessore l'allargamento del picco (Scherrer, deformazioni): per domini piccoli gli anelli si ingrossano, per domini molto grandi si frammentano in punti.</p>
+        </div>
+      </section>
     </div>
     <div class="theory-src" data-tool="kp">
       <section class="theory-sec">
@@ -519,6 +551,16 @@
             <p>Il ramo acustico ($\omega\to0$ per $k\to0$, atomi in fase) e quello ottico (atomi in controfase) sono separati da un gap che si chiude se $M_1=M_2$.</p>
           </div>
       </section>
+      <section class="theory-sec">
+        <h4>Reticoli 3D (SC, BCC, FCC)</h4>
+        <div class="info-body">
+          <p>Con un orbitale $s$ per sito e hopping $-t$ solo tra primi vicini, $E(\mathbf k)=\varepsilon-t\sum_{\vec{\delta}}e^{i\mathbf k\cdot\vec{\delta}}$, dove $\vec{\delta}$ sono i vettori verso i primi vicini. Con $a$ costante della cella cubica:</p>
+          <p>$$\text{SC (6 vicini)}:\quad E=\varepsilon-2t\,(\cos k_xa+\cos k_ya+\cos k_za)$$</p>
+          <p>$$\text{BCC (8 vicini)}:\quad E=\varepsilon-8t\cos\tfrac{k_xa}2\cos\tfrac{k_ya}2\cos\tfrac{k_za}2$$</p>
+          <p>$$\text{FCC (12 vicini)}:\quad E=\varepsilon-4t\Big(\cos\tfrac{k_xa}2\cos\tfrac{k_ya}2+\cos\tfrac{k_ya}2\cos\tfrac{k_za}2+\cos\tfrac{k_za}2\cos\tfrac{k_xa}2\Big)$$</p>
+          <p>La larghezza di banda è $W=2zt$ per SC e BCC ($12t$ e $16t$) e $16t$ per FCC (da $-12t$ a $+4t$, banda asimmetrica). Vicino al fondo di banda $E\approx E_{min}+ta^2k^2$ per tutti e tre: la massa efficace $m^*=\hbar^2/(2ta^2)$ dipende solo da $t$ e da $a$. Con un elettrone per atomo la banda è a metà piena: metallo.</p>
+        </div>
+      </section>
     </div>
     <div class="theory-src" data-tool="pseudo">
       <section class="theory-sec">
@@ -529,6 +571,17 @@
             <p>dove $\varphi$ è liscia. Sostituendo nell'equazione di Schrödinger, $\varphi$ obbedisce a $(T + V + V_R)\varphi = E\varphi$ con lo stesso autovalore, e $$V_R = \sum_c (E-E_c)|c\rangle\langle c| \ge 0$$ è repulsivo e localizzato nel core: cancella gran parte della buca coulombiana.</p>
             <p>La versione più semplice è l'<b>empty core</b> di Ashcroft: $V_{ps}=0$ per $r&lt;r_c$ e $-Z_v e^2/r$ fuori. Un potenziale così debole spiega perché il modello a elettrone quasi libero funziona per i metalli semplici.</p>
           </div>
+      </section>
+      <section class="theory-sec">
+        <h4>Sviluppo di Fourier del potenziale e delle funzioni d'onda</h4>
+        <div class="info-body">
+          <p>In un cristallo il potenziale e le funzioni di Bloch si scrivono come somme di onde piane:</p>
+          <p>$$V(\mathbf r)=\sum_{\mathbf G}V(\mathbf G)\,e^{i\mathbf G\cdot\mathbf r},\qquad \psi_{\mathbf k}(\mathbf r)=\sum_{\mathbf G}c_{\mathbf k+\mathbf G}\,e^{i(\mathbf k+\mathbf G)\cdot\mathbf r}$$</p>
+          <p>Per un atomo con potenziale sferico $v(r)$ e uno stato radiale $R(r)$ i coefficienti sono le trasformate di Fourier:</p>
+          <p>$$v(q)=4\pi\!\int_0^\infty\! v(r)\,\frac{\sin qr}{qr}\,r^2\,dr,\qquad \tilde R(q)=4\pi\!\int_0^\infty\! R(r)\,\frac{\sin qr}{qr}\,r^2\,dr$$</p>
+          <p>Il potenziale vero, $v(r)=-Z_ve^2/r$ fuori dal core e molto più profondo dentro, ha $v(q)\sim -4\pi Z e^2/q^2$: decade lentamente, e gli stati ortogonalizzati ai core (con nodi) hanno componenti fino a $q$ grande. Servono moltissime onde piane, cioè un'energia di taglio $E_{cut}=\hbar^2q_{max}^2/2m$ enorme.</p>
+          <p>Con l'empty core $v_{ps}=0$ per $r&lt;r_c$ e $-Z_ve^2/r$ fuori, la trasformata è analitica, $v_{ps}(q)=-4\pi Z_ve^2\cos(qr_c)/q^2$, e la pseudo-funzione $\varphi$, liscia e senza nodi, ha componenti che si spengono prima di quelle di $\psi$. I due grafici inferiori (curve tratteggiate: vere; curve piene: la combinazione attuale) mostrano a sinistra la carica efficace $Z_{eff}(q)=-q^2v(q)/4\pi e^2$ e a destra $\tilde R(q)$ relativa. Per il potenziale, il vero tende a $Z$ ad alto $q$ perché vede l'intera carica del nucleo, mentre l'empty core, che vede solo $Z_v$, oscilla come $Z_v\cos(qr_c)$. Per la funzione d'onda la pseudo-funzione richiede meno onde piane. La fascia verde è la soglia dell'1%: il pannello dati riporta il $q$ oltre il quale $|\tilde R|$ resta sotto di essa e la relativa $E_{cut}$.</p>
+        </div>
       </section>
     </div>
     <div class="theory-src" data-tool="bands3d">
@@ -661,9 +714,9 @@
   window.addEventListener('load', function () {
     var errs = window.__loadErrors.slice();
     // "const Physics" non crea una proprietà di window: si usa typeof
-    if (typeof Physics === 'undefined' && errs.indexOf('js/physics.js?v=8') < 0) errs.push('js/physics.js (errore di esecuzione)');
-    if (typeof Visuals === 'undefined' && errs.indexOf('js/visuals.js?v=8') < 0) errs.push('js/visuals.js (errore di esecuzione)');
-    if (!window.__appStarted && errs.indexOf('js/main.js?v=8') < 0) errs.push('js/main.js (non avviato)');
+    if (typeof Physics === 'undefined' && errs.indexOf('js/physics.js?v=9') < 0) errs.push('js/physics.js (errore di esecuzione)');
+    if (typeof Visuals === 'undefined' && errs.indexOf('js/visuals.js?v=9') < 0) errs.push('js/visuals.js (errore di esecuzione)');
+    if (!window.__appStarted && errs.indexOf('js/main.js?v=9') < 0) errs.push('js/main.js (non avviato)');
     if (!errs.length) return;
     var box = document.getElementById('load-errors');
     box.innerHTML = '<button type="button" aria-label="Chiudi" onclick="this.parentNode.style.display=\'none\'" ' +

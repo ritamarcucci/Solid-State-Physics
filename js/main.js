@@ -183,7 +183,7 @@ const MODULES = {
     eyebrow: 'Modulo 2', title: 'Bande Cristalline e Modelli',
     tools: [
       { id: 'kp', label: 'Top-down', desc: 'Quasi libero e Kronig-Penney' },
-      { id: 'tb', label: 'Bottom-up', desc: 'Tight binding 1D' },
+      { id: 'tb', label: 'Bottom-up', desc: 'Tight binding 1D e 3D' },
       { id: 'pseudo', label: 'Il trucco del nucleo', desc: 'Pseudopotenziale' },
       { id: 'bands3d', label: 'Bande reali 3D', desc: 'Si, Ge, GaAs, Al, Be, Bi, grafene: L, Γ, X, W, K' }
     ]
@@ -631,7 +631,55 @@ Tools.powder = {
       xTitle: I18N.t('2θ (gradi)'), yTitle: I18N.t('Intensità (u.a.)'), legend: false,
       x: { min: 15, max: 150 }, y: { min: 0, max: 110 }
     });
+    new ResizeObserver(() => this.drawRings()).observe($('pw-rings').parentElement);
     this.update();
+  },
+  /** Figura di diffrazione 2D di una polvere: un anello per ogni riflessione (hkl). Il raggio è
+   *  proporzionale a 2θ (pellicola di Debye-Scherrer), la luminosità a I_hkl, lo spessore alla FWHM del picco. */
+  drawRings() {
+    const res = this.lastRes, cv = $('pw-rings');
+    if (!res || !cv) return;
+    const host = cv.parentElement, w = host.clientWidth, h = host.clientHeight;
+    if (!w || !h) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    const ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const cx = w / 2, cy = h / 2, R = Math.min(w, h) / 2 - 8, TT = 150;
+    const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.hypot(w, h) / 2);
+    bg.addColorStop(0, '#0d1428'); bg.addColorStop(1, '#04060d');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+    // scala angolare: cerchi tratteggiati a 30°, 60°, ... 150°
+    ctx.font = '10px JetBrains Mono, monospace'; ctx.textAlign = 'left';
+    for (let a = 30; a <= TT; a += 30) {
+      ctx.strokeStyle = 'rgba(148,160,187,.16)'; ctx.setLineDash([2, 5]); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(cx, cy, R * a / TT, 0, 2 * Math.PI); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(148,160,187,.45)'; ctx.fillText(`${a}°`, cx + R * a / TT * 0.707 + 3, cy + R * a / TT * 0.707 + 11);
+    }
+    const log = $('pw-log').checked, C = Visuals.COLORS;
+    const peaks = res.peaks.filter(p => p.Irel > 0.05 && p.tt <= TT).sort((p, q) => p.Irel - q.Irel);
+    for (const p of peaks) {
+      const r = R * p.tt / TT;
+      const a = Math.min(1, Math.max(0.07, log ? (Math.log10(Math.max(p.Irel, 0.01)) + 2) / 4 : Math.pow(p.Irel / 100, 0.55)));
+      const lw = Math.max(1.3, R * (p.H / TT) * 2.4);
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+      ctx.strokeStyle = `rgba(255,170,60,${0.22 * a})`; ctx.lineWidth = lw * 4.5; ctx.stroke();      // alone
+      ctx.strokeStyle = `rgba(255,205,110,${0.85 * a})`; ctx.lineWidth = lw; ctx.stroke();           // anello
+      ctx.strokeStyle = `rgba(255,250,225,${a})`; ctx.lineWidth = Math.max(1, lw * 0.3); ctx.stroke(); // nucleo luminoso
+    }
+    // etichette (hkl) degli anelli più intensi, alternate su due angoli per non sovrapporsi
+    ctx.textAlign = 'center'; ctx.font = '600 10.5px JetBrains Mono, monospace';
+    const lab = res.peaks.filter(p => p.Irel > 6 && p.tt <= TT);
+    lab.forEach((p, i) => {
+      const ang = (i % 2 ? -0.35 : -0.95), r = R * p.tt / TT;
+      ctx.fillStyle = 'rgba(5,7,15,.75)';
+      const txt = `${p.h}${p.k}${p.l}`, tw = ctx.measureText(txt).width;
+      ctx.fillRect(cx + r * Math.cos(ang) - tw / 2 - 2, cy + r * Math.sin(ang) - 17, tw + 4, 13);
+      ctx.fillStyle = C.text; ctx.fillText(txt, cx + r * Math.cos(ang), cy + r * Math.sin(ang) - 7);
+    });
+    // fascio diretto bloccato (beam stop)
+    ctx.fillStyle = '#02030a'; ctx.beginPath(); ctx.arc(cx, cy, 5, 0, 2 * Math.PI); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,181,71,.7)'; ctx.lineWidth = 1.2; ctx.stroke();
   },
   update() {
     const key = $('pw-mat').value, mat = M()[key];
@@ -656,6 +704,8 @@ Tools.powder = {
       }))
     };
     this.chart.update('none');
+    this.lastRes = res;
+    this.drawRings();
 
     // tabella riflessioni: indici con spazio se ≥ 10 o negativi, barra dell'intensità, riga più intensa in evidenza
     const hkl = p => [p.h, p.k, p.l].some(v => v < 0 || v > 9) ? `(${p.h} ${p.k} ${p.l})` : `(${p.h}${p.k}${p.l})`;
@@ -854,10 +904,18 @@ Tools.tb = {
   /** Cambia il range dello slider del passo: nella catena biatomica la cella
    *  contiene due atomi, quindi i primi vicini stanno a a/2. */
   setChain() {
-    const di = $('tb-chain').value === 'di', ph = $('tb-kind').value === 'ph';
+    const chain = $('tb-chain').value, d3 = !!Physics.TB3[chain];
+    if (d3) $('tb-kind').value = 'el';                        // fononi solo in 1D
+    $('tb-kind').querySelector('option[value="ph"]').disabled = d3;
+    const di = chain === 'di', ph = $('tb-kind').value === 'ph';
     const s = $('tb-a');
-    s.min = di ? 300 : 150; s.max = di ? 1000 : 600;
+    s.min = d3 ? 200 : di ? 300 : 150; s.max = d3 ? 700 : di ? 1000 : 600;
     this.applyMaterial();
+    // in 3D: solo primi vicini, niente zona estesa
+    ['tb-o1', 'tb-o2', 'tb-o3', 'tb-ext'].forEach(id => $(id).closest('label').classList.toggle('hidden', d3));
+    $('tb-o1').closest('.ctrl-group').querySelector('.lbl').classList.toggle('hidden', d3);
+    $('tb-title').textContent = d3 ? 'Bottom-up: tight binding 3D' : 'Bottom-up: tight binding 1D';
+    document.querySelector('#tb-a-label').firstChild.nodeValue = d3 ? 'Costante reticolare ' : 'Passo ';
     $('tb-eB-wrap').classList.toggle('hidden', !di);
     $('tb-el-ctrls').classList.toggle('hidden', ph);
     $('tb-ph-ctrls').classList.toggle('hidden', !ph);
@@ -868,12 +926,68 @@ Tools.tb = {
   /** Il passo della catena è la distanza tra primi vicini del materiale scelto
    *  (catena monoatomica) o il doppio (catena biatomica, due atomi per cella). */
   applyMaterial() {
-    const di = $('tb-chain').value === 'di', s = $('tb-a');
+    const chain = $('tb-chain').value, di = chain === 'di', s = $('tb-a');
     const d = Physics.nearestNeighbor(M()[$('tb-mat').value]);
-    s.value = clamp(Math.round((di ? 2 : 1) * d * 100), Number(s.min), Number(s.max));
+    // 3D: a è la costante della cella cubica, con d = a·(1, √3/2, 1/√2) per SC, BCC, FCC
+    const f = Physics.TB3[chain] ? 1 / Physics.TB3[chain].dOverA : (di ? 2 : 1);
+    s.value = clamp(Math.round(f * d * 100), Number(s.min), Number(s.max));
     $('tb-a-out').textContent = `${fmt(this.a(), 2)} Å`;
   },
+
+  /** Tight binding 3D (SC, BCC, FCC): un orbitale s per sito, solo primi vicini, hopping di Harrison. */
+  update3D() {
+    const lat = $('tb-chain').value, L = Physics.TB3[lat], C = Visuals.COLORS;
+    const a = this.a(), eA = this.eA(), d = a * L.dOverA, t = Physics.harrisonT(d);
+    const R = Physics.tbCubicBands(lat, eA, t);
+    const sx = this.ek.options.scales.x, sy = this.ek.options.scales.y;
+    sx.min = 0; sx.max = R.x[R.x.length - 1]; sx.ticks.display = false; sx.grid = { ...(sx.grid || {}), display: false };
+    sx.title.text = I18N.t('percorso nella zona di Brillouin');
+    this.ek.$fmtX = x => `x = ${x.toFixed(2)}`;
+    this.ek.$fmtY = y => `E = ${y.toFixed(3)} eV`;
+    const pad = Math.max(0.5, 0.08 * (R.Emax - R.Emin));
+    sy.title.text = 'E (eV)'; sy.min = Math.floor(R.Emin - pad); sy.max = Math.ceil(R.Emax + pad);
+    this.ek.data.datasets = [Visuals.line(R.x.map((x, i) => ({ x, y: R.E[i] })), C['accent-2'], { width: 2.6, label: 'E(k)' })];
+    this.ek.options.plugins.overlays = {
+      xTicks: R.ticks.map(k => ({ x: k.x, label: k.label })),
+      hLines: [{ y: eA, color: 'rgba(255,181,71,.6)', dash: [3, 4], label: 'ε_A' }],
+      yRanges: [{ from: R.Emin, to: R.Emax, color: 'rgba(79,209,197,.05)' }]
+    };
+    this.ek.update('none');
+    // larghezza della banda in funzione della costante reticolare (t cresce rapidamente quando gli atomi si avvicinano)
+    const aMin = Number($('tb-a').min) / 100, aMax = Number($('tb-a').max) / 100, N = 80;
+    const as = Array.from({ length: N }, (_, i) => aMin + (aMax - aMin) * i / (N - 1));
+    const tt = as.map(x => Physics.harrisonT(x * L.dOverA));
+    const lo = tt.map(v => eA + v * L.w[0]), hi = tt.map(v => eA + v * L.w[1]);
+    this.va.$fmtX = x => `a = ${x.toFixed(2)} Å`; this.va.$fmtY = y => `E = ${y.toFixed(2)} eV`;
+    this.va.data.datasets = [
+      Visuals.line(as.map((x, j) => ({ x, y: lo[j] })), C['accent-2'], { width: 1.2, label: '_' }),
+      Visuals.line(as.map((x, j) => ({ x, y: hi[j] })), C['accent-2'], { width: 1.2, fill: '-1', fillColor: 'rgba(79,209,197,.25)', label: 'banda' })
+    ];
+    const span = Math.max(...hi) - Math.min(...lo);
+    this.va.options.scales.y.min = Math.max(Math.min(...lo), eA - 12 - 0.2 * span); this.va.options.scales.y.max = Math.min(Math.max(...hi), eA + 12 + 0.2 * span);
+    this.va.options.scales.x.min = aMin; this.va.options.scales.x.max = aMax;
+    this.va.options.plugins.overlays = { vLines: [{ x: a, color: C.accent, width: 1.5, label: `a = ${fmt(a, 2)} Å` }] };
+    this.va.update('none');
+    const W = t * (L.w[1] - L.w[0]);
+    const formula = { sc: 'E(k) = ε − 2t(cos kₓa + cos k_ya + cos k_za)', bcc: 'E(k) = ε − 8t cos(kₓa/2) cos(k_ya/2) cos(k_za/2)',
+      fcc: 'E(k) = ε − 4t[cos(kₓa/2)cos(k_ya/2) + cos(k_ya/2)cos(k_za/2) + cos(k_za/2)cos(kₓa/2)]' }[lat];
+    $('tb-badge').textContent = formula; $('tb-badge').className = 'badge hot';
+    $('tb-readout').innerHTML = `
+      <div class="row"><span>reticolo / percorso</span><b>${L.label} · ${R.ticks.map(k => k.label).join('–')}</b></div>
+      <div class="row"><span>numero di primi vicini z</span><b>${L.z}</b></div>
+      <div class="row"><span>d primi vicini (${M()[$('tb-mat').value].formula})</span><span>${fmt(Physics.nearestNeighbor(M()[$('tb-mat').value]), 3)} Å</span></div>
+      <div class="row"><span>d = a·${{ sc: '1', bcc: '√3/2', fcc: '1/√2' }[lat]}</span><b>${fmt(d, 3)} Å</b></div>
+      <div class="row"><span>t (d)</span><b>${fmt(t, 3)} eV</b></div>
+      <hr>
+      <div class="row"><span>estensione totale</span><b>${fmt(W, 3)} eV</b></div>
+      <div class="row"><span>bordi di banda</span><span>ε ${L.w[0] < 0 ? '−' : '+'} ${Math.abs(L.w[0])}t … ε + ${L.w[1]}t</span></div>
+      <div class="row"><span>m* al fondo banda = ħ²/(2ta²)</span><b>${fmt(Physics.CONST.HBAR2_2M / (t * a * a), 2)} mₑ</b></div>
+      <hr><span>Un orbitale s per atomo dà una sola banda (2 stati per atomo): con un elettrone per atomo è mezza piena, quindi metallo.</span>
+      <hr><span>Hopping di Harrison: |V_ssσ| = 1.40·ħ²/(m d²) = 10.67/d² eV·Å².</span>`;
+  },
   update() {
+    if (Physics.TB3[$('tb-chain').value]) return this.update3D();
+    this.ek.options.scales.x.ticks.display = true; this.ek.options.scales.x.grid = { ...(this.ek.options.scales.x.grid || {}), display: true };
     const di = $('tb-chain').value === 'di', ph = $('tb-kind').value === 'ph';
     const C = Visuals.COLORS, n = 241;
     const ks = Array.from({ length: n }, (_, i) => -1 + 2 * i / (n - 1));
@@ -1023,9 +1137,16 @@ Tools.pseudo = {
       xTitle: I18N.t('r (Å) — nucleo al centro'), yTitle: 'V(r) (eV)', y2Title: 'R(r)  (Å⁻³ᐟ²)',
       x: { min: -5, max: 5 }, y: { min: -60, max: 20 }, y2: { min: -1, max: 1 }
     });
+    // sviluppo di Fourier: ampiezze relative dei coefficienti di potenziale e funzione d'onda in funzione di q
+    this.fqv = Visuals.makeChart($('ps-fqv'), { xTitle: 'q (Å⁻¹)', yTitle: 'Z_eff(q)', x: { min: 0, max: 20 } });
+    this.fqw = Visuals.makeChart($('ps-fqw'), { xTitle: 'q (Å⁻¹)', yTitle: 'R̃(q) / R̃(q₀)', x: { min: 0, max: 10 } });
+    this.fqv.$fmtX = this.fqw.$fmtX = x => `q = ${x.toFixed(2)} Å⁻¹`;
+    this.fqv.$fmtY = y => `Z_eff = ${y.toFixed(2)}`;
+    this.fqw.$fmtY = y => `R̃ = ${y.toFixed(3)}`;
     this.readT = bindRange('ps-t', v => v / 1000, v => `${Math.round(v * 100)} %`, () => { this.t = this.readT(); this.draw(); });
     $('ps-atom').addEventListener('change', () => this.setAtom());
     $('ps-vr').addEventListener('change', () => this.draw());
+    $('ps-zoom').addEventListener('change', () => { this.buildGrid(); this.draw(); });
     $('ps-btn').addEventListener('click', () => this.animate(this.t < 0.5 ? 1 : 0));
     this.setAtom();
   },
@@ -1035,25 +1156,54 @@ Tools.pseudo = {
     setNotice('pseudo', this.sys.approx
       ? I18N.t(`⚠ <b>Curva qualitativa (parametri approssimati)</b>: per ${M()[key].name.toLowerCase()} il raggio di empty core non è tabulato, si usa r<sub>c</sub> ≈ 0.4·r<sub>atomico</sub>.`)
       : null);
-    // griglia di visualizzazione simmetrica: ψ(|x|) per mostrare il nucleo al centro
-    const n = 801;
-    this.xs = Array.from({ length: n }, (_, i) => -5 + 10 * i / (n - 1));
     const s = this.sys;
-    this.rr = this.xs.map(x => Math.max(Math.abs(x), 0.004));
-    this.psiV = this.rr.map(r => s.interp(s.psi, r));
-    this.phiV = this.rr.map(r => s.interp(s.phi, r));
-    // scala della funzione d'onda decisa dalla regione esterna (|r| > 0.15 Å):
-    // negli atomi pesanti le oscillazioni nel core escono dal grafico, ed è
-    // proprio il comportamento "violento" che lo pseudopotenziale elimina
-    let amp = 0;
-    this.xs.forEach((x, i) => { if (Math.abs(x) > 0.15) amp = Math.max(amp, Math.abs(this.psiV[i]), Math.abs(this.phiV[i])); });
-    this.chart.options.scales.y2.min = -1.3 * amp; this.chart.options.scales.y2.max = 1.3 * amp;
+    this.buildGrid();
     this.chart.$fmtX = x => `r = ${Math.abs(x).toFixed(3)} Å`;
     this.chart.$fmtY = y => `${y.toFixed(3)}`;
     // normalizzazione della combinazione (1−t)ψ + tφ: ‖·‖² = (1−t)² + t² + 2t(1−t)⟨ψ|φ⟩
     let ov = 0; for (let i = 0; i < s.r.length; i++) ov += s.psi[i] * s.phi[i] * s.r[i] ** 2;
     this.ovPP = ov * (s.r[1] - s.r[0]);
+    this.computeFourier();
     this.draw();
+  },
+  /** Griglia di visualizzazione simmetrica: ψ(|x|) con il nucleo al centro.
+   *  Vista normale: |x| ≤ 5 Å, scala della funzione d'onda decisa dalla regione esterna (|r| > 0.15 Å): le oscillazioni
+   *  nel core escono dal grafico, ed è proprio il comportamento "violento" che lo pseudopotenziale elimina.
+   *  Zoom sul core: |x| ≤ 1.2 Å con griglia fitta e scala sull'ampiezza della ψ vera dentro il core, così si vedono
+   *  i nodi e le oscillazioni veloci (la cuspide per r → 0 è esclusa dalla scala). */
+  buildGrid() {
+    const s = this.sys, zoom = $('ps-zoom').checked, xr = zoom ? 1.2 : 5, n = zoom ? 2401 : 801;
+    this.xs = Array.from({ length: n }, (_, i) => -xr + 2 * xr * i / (n - 1));
+    this.rr = this.xs.map(x => Math.max(Math.abs(x), 0.004));
+    this.psiV = this.rr.map(r => s.interp(s.psi, r));
+    this.phiV = this.rr.map(r => s.interp(s.phi, r));
+    let amp = 0;
+    const rIn = zoom ? Math.max(s.rMin, 0.08) : 0.15;
+    this.xs.forEach((x, i) => { if (Math.abs(x) > rIn) amp = Math.max(amp, Math.abs(this.psiV[i]), Math.abs(this.phiV[i])); });
+    const o = this.chart.options.scales;
+    o.x.min = -xr; o.x.max = xr;
+    o.y2.min = -1.3 * amp; o.y2.max = 1.3 * amp;
+    // in zoom il potenziale vero diverge come −Z/r: scala verticale più ampia
+    o.y.min = zoom ? -120 : -60;
+  },
+  /** Trasformate di Fourier (sferiche) di V e delle funzioni radiali: f(q) = 4π ∫ f(r) sin(qr)/(qr) r² dr.
+   *  La parte coulombiana −Z_v e²/r si trasforma in forma chiusa (−4πZ_v e²/q²); numericamente resta solo il resto,
+   *  che è a corto raggio: così la coda di 1/r non produce oscillazioni spurie dal taglio a r = 7 Å. */
+  computeFourier() {
+    const s = this.sys, R = s.r, dr = R[1] - R[0], Zv = s.P.Zv, E2 = Physics.CONST.E2;
+    const qs = Array.from({ length: 400 }, (_, i) => 0.25 + i * 0.0625);   // 0.25 … 25.2 Å⁻¹
+    const ft = f => qs.map(q => {
+      let sum = 0;
+      for (let i = 0; i < R.length; i++) { const r = R[i], x = q * r; sum += f(i, r) * (Math.sin(x) / x) * r * r; }
+      return 4 * Math.PI * sum * dr;
+    });
+    const coul = qs.map(q => -4 * Math.PI * Zv * E2 / (q * q));
+    this.qs = qs;
+    this.F = {
+      vT: ft((i, r) => s.Vtrue(r) + Zv * E2 / r).map((v, j) => v + coul[j]),
+      vP: ft((i, r) => s.Vps(r) + Zv * E2 / r).map((v, j) => v + coul[j]),
+      pT: ft(i => s.psi[i]), pP: ft(i => s.phi[i])
+    };
   },
   /** Interpolazione animata: un'unica variabile t ∈ [0,1] guida sia il
    *  potenziale V = V_vero + t·V_R sia la funzione d'onda (1−t)ψ + tφ. */
@@ -1093,6 +1243,45 @@ Tools.pseudo = {
     };
     this.chart.update('none');
 
+    // sviluppo di Fourier della combinazione attuale (le trasformate sono lineari: V = (1−t)V_vero + t·V_ps, ecc.)
+    const F = this.F, qs = this.qs, E2 = Physics.CONST.E2;
+    const vCur = F.vT.map((v, j) => (1 - t) * v + t * F.vP[j]);
+    const wCur = F.pT.map((v, j) => ((1 - t) * v + t * F.pP[j]) / norm);
+    // potenziale: carica efficace Z_eff(q) = −q² v(q)/(4π e²): →Z_v per q piccolo (si vede il core + elettroni),
+    // →Z per q grande nel potenziale vero (si vede il nucleo nudo), Z_v·cos(q r_c) per l'empty core
+    const zEff = arr => qs.map((q, j) => ({ x: q, y: -q * q * arr[j] / (4 * Math.PI * E2) }));
+    const w0 = F.pT[0] || 1;                                   // ampiezza di riferimento: ψ vera a q₀ = 0.25 Å⁻¹
+    const wRel = arr => qs.map((q, j) => ({ x: q, y: arr[j] / w0 }));
+    // sempre visibili: vera (tratteggio ambra/ciano), pseudo (puntinata viola) e attuale (linea piena sopra le altre)
+    const dv = [
+      Visuals.line(zEff(F.vT), 'rgba(255,181,71,.6)', { width: 1.5, dash: [6, 4], label: 'Z_eff vera' }),
+      Visuals.line(zEff(F.vP), C['accent-3'], { width: 1.5, dash: [2, 3], label: 'Z_eff pseudo' })
+    ];
+    const dw = [
+      Visuals.line(wRel(F.pT), 'rgba(79,209,197,.65)', { width: 1.5, dash: [6, 4], label: 'R̃(q) vera' }),
+      Visuals.line(wRel(F.pP), C['accent-3'], { width: 1.5, dash: [2, 3], label: 'R̃(q) pseudo' })
+    ];
+    dv.push(Visuals.line(zEff(vCur), C.accent, { width: 2.6, label: 'Z_eff attuale' }));
+    dw.push(Visuals.line(wRel(wCur), C['accent-2'], { width: 2.6, label: 'R̃(q) attuale' }));
+    this.fqv.data.datasets = dv; this.fqw.data.datasets = dw;
+    // q oltre il quale |R̃| resta sotto l'1% del massimo → energia di taglio ħ²q²/2m della base a onde piane
+    const qCut = arr => {
+      const m = Math.max(...arr.map(Math.abs));
+      for (let j = arr.length - 1; j >= 0; j--) if (Math.abs(arr[j]) / m >= 0.01) return j === arr.length - 1 ? null : qs[j];
+      return qs[0];
+    };
+    const cutTxt = q => (q === null ? `> ${fmt(qs[qs.length - 1], 0)} Å⁻¹` : `${fmt(q, 1)} Å⁻¹ · ${fmt(Physics.CONST.HBAR2_2M * q * q, 0)} eV`);
+    const qT = qCut(F.pT), qC = qCut(wCur);
+    this.fqv.options.plugins.overlays = {
+      hLines: [{ y: 0, color: 'rgba(148,160,187,.4)', width: 1 }, { y: s.P.Zv, color: 'rgba(148,160,187,.35)', dash: [3, 4], width: 1, label: 'Z_v' }]
+    };
+    this.fqw.options.plugins.overlays = {
+      hLines: [{ y: 0, color: 'rgba(148,160,187,.4)', width: 1 }],
+      yRanges: [{ from: -0.01, to: 0.01, color: 'rgba(94,224,143,.14)' }],
+      vLines: qC === null ? [] : [{ x: qC, color: 'rgba(94,224,143,.8)', dash: [4, 3], width: 1.3, label: `q₁% = ${fmt(qC, 1)} Å⁻¹` }]
+    };
+    this.fqv.update('none'); this.fqw.update('none');
+
     // nodi della curva attuale, contati sulla griglia fine del calcolo
     // (quella del grafico è troppo rada per i nodi interni degli atomi pesanti)
     let nodes = 0, prev = 0;
@@ -1116,6 +1305,9 @@ Tools.pseudo = {
       <div class="row"><span>nodi attesi per lo stato ${P.nv}s</span><span>${s.nodesExpected}</span></div>
       <div class="row"><span>V(r_c) vero</span><span>${fmt(s.Vtrue(s.rc), 1)} eV</span></div>
       <div class="row"><span>ψ vs φ a r = 2 Å</span><span>${fmt(s.interp(s.psi, 2), 3)} / ${fmt(s.interp(s.phi, 2), 3)}</span></div>
+      <hr>
+      <div class="row"><span>q (ψ sotto 1%) · E_cut, ψ vera</span><span>${cutTxt(qT)}</span></div>
+      <div class="row"><span>q (ψ sotto 1%) · E_cut, attuale</span><b class="${t > 0.98 ? 'ok' : ''}">${cutTxt(qC)}</b></div>
       <hr><span>Fuori dal core le due funzioni quasi coincidono: è lì che avvengono legame e conduzione.</span>`;
   }
 };
@@ -1331,8 +1523,8 @@ Tools.bands3d = {
       badge.textContent = `${mat.name}: gap ${info.direct ? 'DIRETTA' : 'INDIRETTA'} · ${fmt(info.gap, 2)} eV`;
       badge.className = 'badge ' + (info.direct ? 'good' : 'hot');
       $('b3-readout').innerHTML = `
-        <div class="row"><span>gap fondamentale (EPM)</span><b class="hl">${fmt(info.gap, 3)} eV</b></div>
-        <div class="row"><span>gap sperimentale (300 K)</span><span>${fmt(P.expGap, 2)} eV</span></div>
+        <div class="row"><span>gap sperimentale (300 K)</span><b class="hl">${fmt(P.expGap, 2)} eV</b></div>
+        <div class="row"><span>gap calcolata (EPM)</span><span>${fmt(info.gap, 3)} eV</span></div>
         <div class="row"><span>tipo</span><b class="${info.direct ? 'ok' : 'hl'}">${info.direct ? 'diretta' : 'indiretta'}</b></div>
         <hr>
         <div class="row"><span>massimo di valenza</span><b>${info.vbm.where}</b></div>

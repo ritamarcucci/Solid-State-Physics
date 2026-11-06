@@ -443,6 +443,21 @@ code { font-family: var(--font-mono); font-size: .92em; }
 .b3-note b { color: var(--text); }
 .b3-note .hint { margin-top: 6px; }
 
+/* ---- polveri: diffrattogramma + anelli di Debye-Scherrer affiancati ---- */
+.pw-top {
+  flex: 1; min-height: 0;
+  display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 12px;
+}
+.pw-rings-panel { min-width: 0; }
+.pw-rings-panel figcaption span { color: var(--faint); font-size: 11.5px; }
+.pw-rings-panel .canvas-host { flex: 1; }
+/* pseudopotenziale: due grafici di Fourier affiancati sotto il grafico principale */
+.ps-four { flex: 0 0 clamp(210px, 30vh, 290px); min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 12px; }
+.ps-four .panel { min-width: 0; }
+.ps-four .chart-host { flex: 1; }
+.ps-four figcaption { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ps-four figcaption span { color: var(--faint); font-size: 11.5px; }
+
 /* ---- tabella picchi (polveri) ---- */
 .table-wrap {
   flex: 0 0 auto; max-height: clamp(190px, 36vh, 330px); overflow: auto; -webkit-overflow-scrolling: touch;
@@ -720,6 +735,10 @@ mjx-container[display="true"] { margin: .4em 0 !important; overflow-x: auto; ove
   .side-title { padding: 8px 4px 6px; }
   .side-title .eyebrow { display: none; }
   .side-title h2 { font-size: 17px; }
+  /* polveri: grafico e anelli uno sotto l'altro, anelli quadrati */
+  #tool-powder .pw-top { flex: none; display: flex; flex-direction: column; gap: 12px; }
+  #tool-powder .pw-top > .chart-host { flex: none; height: 320px; }
+  #tool-powder .pw-rings-panel .canvas-host { flex: none; height: min(calc(100vw - 40px), 380px); }
   /* tabella hkl: 7 colonne dentro 340 px, senza tagliare l'ultima */
   /* polveri: il pannello cresce con il contenuto e la tabella mostra TUTTE le righe (scorre la pagina,
      non un riquadro interno che finiva tagliato dal bordo del pannello) */
@@ -737,14 +756,18 @@ mjx-container[display="true"] { margin: .4em 0 !important; overflow-x: auto; ove
   .nav-item b { font-size: 13.5px; white-space: nowrap; }
 
   /* il grafico resta visibile mentre si scorrono i controlli (strumenti con un solo grafico) */
-  #tool-lattice .viz-pane, #tool-kp .viz-pane, #tool-pseudo .viz-pane {
+  #tool-lattice .viz-pane, #tool-kp .viz-pane {
     position: sticky; top: 0; z-index: 6; height: 52vh; padding: 10px 12px;
     background: var(--bg); border-bottom: 1px solid var(--line-2);
     box-shadow: 0 14px 24px -14px rgba(0, 0, 0, .8);
   }
   #tool-lattice .chart-host.grow, #tool-kp .chart-host.grow, #tool-pseudo .chart-host.grow { min-height: 0; }
-  #tool-kp .viz-pane, #tool-pseudo .viz-pane { height: 66vh; }
-  #tool-kp .chart-host.mini, #tool-pseudo .chart-host.mini { flex-basis: 118px; }
+  #tool-kp .viz-pane { height: 66vh; }
+  #tool-kp .chart-host.mini { flex-basis: 118px; }
+  /* pseudopotenziale: il pannello cresce col contenuto (grafico + due grafici di Fourier impilati) */
+  #tool-pseudo .viz-pane { height: auto; }
+  #tool-pseudo .chart-host.grow { flex: none; height: 340px; min-height: 0; }
+  .ps-four { flex: none; grid-template-columns: 1fr; grid-template-rows: repeat(2, 230px); }
   #tool-kp .viz-pane, #tool-pseudo .viz-pane { gap: 8px; }
   .viz-head h3 { font-size: 16px; }
   .badge { font-size: 11.5px; padding: 4px 9px; }

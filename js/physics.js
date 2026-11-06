@@ -1540,6 +1540,32 @@ const Physics = (() => {
     return { x: xs, ticks, seg, bands, info, nG: 0, P: { zv: 5, filled: 5 }, lattice: 'rhombohedral', geo };
   }
 
+  /* ---- tight binding 3D cubico: un orbitale s per sito, hopping −t solo ai primi vicini ----
+   *  E(k) = ε − t Σ_δ e^{ik·δ}, con k in unità 2π/a (a = costante della cella cubica convenzionale):
+   *    SC  (6 vicini)  : ε − 2t [cos k_x a + cos k_y a + cos k_z a]
+   *    BCC (8 vicini)  : ε − 8t cos(k_x a/2) cos(k_y a/2) cos(k_z a/2)
+   *    FCC (12 vicini) : ε − 4t [cos(k_x a/2)cos(k_y a/2) + cos(k_y a/2)cos(k_z a/2) + cos(k_z a/2)cos(k_x a/2)]
+   *  Bordi di banda in unità di t: SC ±6, BCC ±8, FCC da −12 a +4. Massa al fondo m* = ħ²/(2 t a²) per tutti e tre. */
+  const TB3 = {
+    sc:  { z: 6,  label: 'SC',  dOverA: 1,                w: [-6, 6] },
+    bcc: { z: 8,  label: 'BCC', dOverA: Math.sqrt(3) / 2, w: [-8, 8] },
+    fcc: { z: 12, label: 'FCC', dOverA: Math.SQRT1_2,     w: [-12, 4] }
+  };
+  function tbCubicE(lat, u, eps, t) {
+    const c = x => Math.cos(2 * Math.PI * x), h = x => Math.cos(Math.PI * x);
+    if (lat === 'sc') return eps - 2 * t * (c(u[0]) + c(u[1]) + c(u[2]));
+    if (lat === 'bcc') return eps - 8 * t * h(u[0]) * h(u[1]) * h(u[2]);
+    return eps - 4 * t * (h(u[0]) * h(u[1]) + h(u[1]) * h(u[2]) + h(u[2]) * h(u[0]));
+  }
+  /** Banda lungo il percorso ad alta simmetria del reticolo (SC, BCC o FCC). */
+  function tbCubicBands(lat, eps, t, nPerBZ = 60) {
+    const { points, path } = BZ[lat];
+    const { xs, ks, ticks } = buildKPath(points, path, nPerBZ);
+    const E = ks.map(u => tbCubicE(lat, u, eps, t));
+    return { x: xs, E, ticks, Emin: Math.min(...E), Emax: Math.max(...E) };
+  }
+
+  /** Bande cubiche: bande che si trovano
   /** Bande dei materiali non cubici; null se il materiale è cubico. */
   function bandsNonCubic(matKey, opt) {
     const st = MATERIALS[matKey].structure;
@@ -1558,7 +1584,8 @@ const Physics = (() => {
     kpRHS, kpBands, freeElectronFolded, kpFermi, extendedK,
     harrisonT, tbMono, tbDiatomic, tbBandsVsA, phononMono, phononDiatomic,
     pseudoSystem, pseudoAtom, epmBands, metalModel, symEigenvalues,
-    crystalGeometry, brillouinZone, bandsNonCubic, biEigen, biModel, BI_TB, GRAPHENE_TB
+    crystalGeometry, brillouinZone, bandsNonCubic, biEigen, biModel, BI_TB, GRAPHENE_TB,
+    TB3, tbCubicE, tbCubicBands
   };
 })();
 
